@@ -4,11 +4,14 @@ const lotteryService = require('../services/lotteryService');
 
 /**
  * 取得攪珠結果
- * GET /api/lottery/results
+ * GET /api/lottery/results?startYear=2025&endYear=2025
  */
 router.get('/results', async (req, res) => {
   try {
-    const results = await lotteryService.fetchLotteryResults();
+    const startYear = req.query.startYear ? parseInt(req.query.startYear) : null;
+    const endYear = req.query.endYear ? parseInt(req.query.endYear) : null;
+    
+    const results = await lotteryService.fetchLotteryResults(startYear, endYear);
     res.json({
       success: true,
       data: results,

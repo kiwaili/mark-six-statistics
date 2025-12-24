@@ -39,6 +39,36 @@
             margin-bottom: 30px;
         }
 
+        .year-selector {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .year-selector label {
+            color: #333;
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .year-selector input {
+            padding: 10px 15px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            width: 120px;
+            text-align: center;
+            transition: border-color 0.3s ease;
+        }
+
+        .year-selector input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
         .fetch-button {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -141,6 +171,12 @@
         <h1>六合彩攪珠結果</h1>
         
         <div class="button-container">
+            <div class="year-selector">
+                <label for="startYear">年份：</label>
+                <input type="number" id="startYear" min="2000" max="2100" value="">
+                <label for="endYear">至</label>
+                <input type="number" id="endYear" min="2000" max="2100" value="">
+            </div>
             <button class="fetch-button" id="fetchButton" onclick="fetchLotteryResults()">
                 取得攪珠結果
             </button>
@@ -156,11 +192,33 @@
     </div>
 
     <script>
+        // 初始化年份選擇器，預設為今年
+        document.addEventListener('DOMContentLoaded', function() {
+            const currentYear = new Date().getFullYear();
+            document.getElementById('startYear').value = currentYear;
+            document.getElementById('endYear').value = currentYear;
+        });
+
         async function fetchLotteryResults() {
             const button = document.getElementById('fetchButton');
             const loading = document.getElementById('loading');
             const error = document.getElementById('error');
             const resultsContainer = document.getElementById('resultsContainer');
+            const startYear = document.getElementById('startYear').value;
+            const endYear = document.getElementById('endYear').value;
+
+            // 驗證年份輸入
+            if (!startYear || !endYear) {
+                error.textContent = '錯誤: 請輸入開始年份和結束年份';
+                error.style.display = 'block';
+                return;
+            }
+
+            if (parseInt(startYear) > parseInt(endYear)) {
+                error.textContent = '錯誤: 開始年份不能大於結束年份';
+                error.style.display = 'block';
+                return;
+            }
 
             // 重置狀態
             button.disabled = true;
@@ -169,7 +227,8 @@
             resultsContainer.innerHTML = '';
 
             try {
-                const response = await fetch('/api/lottery/results');
+                const url = `/api/lottery/results?startYear=${startYear}&endYear=${endYear}`;
+                const response = await fetch(url);
                 const data = await response.json();
 
                 if (data.success) {
