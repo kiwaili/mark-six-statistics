@@ -39,6 +39,14 @@
             margin-bottom: 30px;
         }
 
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+
         .year-selector {
             display: flex;
             align-items: center;
@@ -96,10 +104,6 @@
             transform: none;
         }
 
-        #analysisButton {
-            display: none;
-            margin: 15px auto 0;
-        }
 
         .loading {
             text-align: center;
@@ -185,15 +189,17 @@
             <button class="fetch-button" id="fetchButton" onclick="fetchLotteryResults()">
                 取得攪珠結果
             </button>
-            <button class="fetch-button" id="analysisButton" onclick="showAnalysis()">
-                分析
-            </button>
-            <button class="fetch-button" id="validateButton" onclick="showValidation()" style="display: none;">
-                迭代驗證
-            </button>
-            <button class="fetch-button" id="predictButton" onclick="showLatestPrediction()" style="display: none; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-                🎯 最新預測
-            </button>
+            <div class="action-buttons">
+                <button class="fetch-button" id="analysisButton" onclick="showAnalysis()" style="display: none;">
+                    分析
+                </button>
+                <button class="fetch-button" id="validateButton" onclick="showValidation()" style="display: none;">
+                    迭代驗證
+                </button>
+                <button class="fetch-button" id="predictButton" onclick="showLatestPrediction()" style="display: none; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    🎯 最新預測
+                </button>
+            </div>
         </div>
 
         <div id="loading" class="loading" style="display: none;">
