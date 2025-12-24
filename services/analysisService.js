@@ -384,8 +384,12 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   
   // 計算目標準確率（至少30%）
   const targetAccuracy = 30;
+  // 目標命中數至少3
+  const targetHitCount = 3;
   const currentAccuracy = comparison.accuracy;
+  const currentHitCount = comparison.hitCount;
   const accuracyGap = targetAccuracy - currentAccuracy;
+  const hitCountGap = targetHitCount - currentHitCount;
   
   // 分析命中和未命中號碼在各個指標中的表現
   const hitNumbers = comparison.hits;
@@ -451,13 +455,15 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   
   // 根據準確率差距和指標表現調整權重
   // 動態學習率：準確率差距越大，學習率越高
+  // 如果命中數少於目標（至少3），使用更強的學習率
   const baseLearningRate = 0.15;
-  const learningRate = Math.min(0.3, baseLearningRate * (1 + Math.abs(accuracyGap) / 50));
-  const adjustmentFactor = accuracyGap / 100; // 根據準確率差距調整幅度
+  const hitCountMultiplier = hitCountGap > 0 ? (1 + hitCountGap * 0.2) : 1; // 命中數少於3時增加學習率
+  const learningRate = Math.min(0.4, baseLearningRate * (1 + Math.abs(accuracyGap) / 50) * hitCountMultiplier);
+  const adjustmentFactor = (accuracyGap / 100) + (hitCountGap > 0 ? hitCountGap * 0.1 : 0); // 根據準確率和命中數差距調整幅度
   
   if (totalPerformance > 0) {
-    // 如果準確率低於目標，增加表現好的指標權重
-    if (currentAccuracy < targetAccuracy) {
+    // 如果命中數少於目標（至少3）或準確率低於目標，增加表現好的指標權重
+    if (currentHitCount < targetHitCount || currentAccuracy < targetAccuracy) {
       if (performanceFrequency > 0) {
         newWeights.frequency += learningRate * adjustmentFactor * (performanceFrequency / totalPerformance);
       }
@@ -516,7 +522,16 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
       newWeights.pattern = Math.min(0.3, newWeights.pattern + 0.03);
       newWeights.frequency = Math.max(0.15, newWeights.frequency - 0.04);
       newWeights.weightedFrequency = Math.max(0.2, newWeights.weightedFrequency - 0.04);
-    } else if (comparison.hitCount >= 3) {
+    } else if (comparison.hitCount < targetHitCount) {
+      // 命中數少於目標（至少3），積極調整權重
+      // 增加間隔和模式權重（這些指標可能有助於提高命中數）
+      const adjustmentAmount = (targetHitCount - comparison.hitCount) * 0.03;
+      newWeights.gap = Math.min(0.4, newWeights.gap + adjustmentAmount);
+      newWeights.pattern = Math.min(0.3, newWeights.pattern + adjustmentAmount * 0.8);
+      newWeights.weightedFrequency = Math.min(0.45, newWeights.weightedFrequency + adjustmentAmount * 0.5);
+      // 稍微減少頻率權重
+      newWeights.frequency = Math.max(0.15, newWeights.frequency - adjustmentAmount * 0.3);
+    } else if (comparison.hitCount >= targetHitCount) {
       // 命中3個以上，保持當前權重，稍微增加表現最好的指標
       // 這裡可以根據歷史表現來決定
     }
