@@ -311,21 +311,48 @@
         /* Adjust prediction cards for mobile */
         @media screen and (max-width: 768px) {
             .prediction-cards {
-                flex-direction: column !important;
                 gap: 10px !important;
+                justify-content: center !important;
             }
 
             .prediction-card {
-                min-width: 100% !important;
-                max-width: 100% !important;
+                min-width: calc(33.333% - 7px) !important;
+                max-width: calc(33.333% - 7px) !important;
                 padding: 15px !important;
-                flex: 1 1 100% !important;
+                flex: 0 0 calc(33.333% - 7px) !important;
+                font-size: 12px !important;
             }
         }
 
         @media screen and (max-width: 480px) {
             .prediction-card {
+                min-width: calc(50% - 5px) !important;
+                max-width: calc(50% - 5px) !important;
+                flex: 0 0 calc(50% - 5px) !important;
                 padding: 12px !important;
+                font-size: 11px !important;
+            }
+            
+            .prediction-card > div:first-child {
+                font-size: 10px !important;
+            }
+            
+            .prediction-card > div:nth-child(2) {
+                font-size: 18px !important;
+            }
+            
+            .prediction-card > div:last-child {
+                font-size: 9px !important;
+            }
+        }
+        
+        /* iPhone 17 specific adjustments */
+        @media screen and (max-width: 430px) {
+            .prediction-card {
+                min-width: calc(50% - 5px) !important;
+                max-width: calc(50% - 5px) !important;
+                flex: 0 0 calc(50% - 5px) !important;
+                padding: 10px !important;
             }
         }
 
@@ -569,7 +596,7 @@
             `;
             
             // 顯示前 10 名號碼
-            html += `<div class="prediction-cards" style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 30px;">`;
+            html += `<div class="prediction-cards" style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 30px; justify-content: center;">`;
             analysisData.topNumbers.forEach((item, index) => {
                 const rank = index + 1;
                 const size = rank <= 3 ? '25px' : '20px'; // 前三名稍大
@@ -586,8 +613,8 @@
                         border-radius: 15px;
                         text-align: center;
                         min-width: 120px;
-                        flex: 1 1 calc(50% - 8px);
-                        max-width: calc(50% - 8px);
+                        flex: 1 1 calc(33.333% - 10px);
+                        max-width: calc(33.333% - 10px);
                         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
                         transition: transform 0.3s ease;
                     " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
