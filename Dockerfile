@@ -4,7 +4,7 @@ FROM node:18-alpine
 # Set the working directory in the container
 WORKDIR /app
 
-# Copy package.json and package-lock.json (if available)
+# Copy package.json and package-lock.json
 COPY package*.json ./
 
 # Install dependencies
@@ -16,8 +16,10 @@ COPY . .
 # Expose the port the app runs on
 EXPOSE 8080
 
-# Set the PORT environment variable (Cloud Run requirement)
+# Cloud Run will set PORT automatically via environment variable
+# We set a default here, but Cloud Run will override it
 ENV PORT=8080
+ENV NODE_ENV=production
 
 # Start the application
 CMD ["node", "server.js"]
