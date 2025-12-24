@@ -270,10 +270,10 @@ function analyzeNumbers(results, weights = {}) {
       .map(([num, count]) => ({ number: parseInt(num, 10), count }))
   };
   
-  // 生成複式投注建議（完整版）
-  let compoundBetSuggestion = null;
+  // 生成複式投注建議（多個選項：7個、8個、9個、10個號碼等）
+  let compoundBetSuggestions = null;
   try {
-    compoundBetSuggestion = generateCompoundBetSuggestion(topNumbers);
+    compoundBetSuggestions = generateCompoundBetSuggestions(topNumbers);
   } catch (error) {
     console.warn('生成複式投注建議失敗:', error.message);
     // 如果生成失敗，不影響主要分析結果
@@ -291,7 +291,7 @@ function analyzeNumbers(results, weights = {}) {
   return {
     topNumbers,
     stats,
-    compoundBetSuggestion, // 完整複式投注建議
+    compoundBetSuggestions, // 複式投注建議（多個選項）
     compoundBetSuggestion100, // $100 複式投注建議
     analysisDetails: {
       frequency,
@@ -885,109 +885,76 @@ function generateCompoundBetSuggestion100(numbers) {
 }
 
 /**
- * 生成縮減輪轉複式投注建議
- * 使用縮減輪轉系統，以最少注數覆蓋所有15個號碼
+ * 生成複式投注建議（多個選項）
+ * 根據六合彩複式投注規則：從7個或以上號碼中選取，系統會自動組合所有可能的6個號碼組合
  * @param {Array} numbers - 15個預測號碼（已按分數排序）
- * @returns {Object} 複式投注建議
+ * @returns {Array} 複式投注建議陣列（每個選項包含不同數量的號碼）
  */
-function generateCompoundBetSuggestion(numbers) {
-  if (!numbers || numbers.length < 15) {
-    throw new Error('需要至少15個號碼');
+function generateCompoundBetSuggestions(numbers) {
+  if (!numbers || numbers.length < 7) {
+    throw new Error('需要至少7個號碼才能生成複式投注建議');
   }
   
   // 提取號碼值（確保是數字）
-  const numberArray = numbers.slice(0, 15).map(item => 
+  const numberArray = numbers.map(item => 
     typeof item === 'object' ? item.number : parseInt(item, 10)
   ).filter(n => !isNaN(n) && n >= 1 && n <= 49);
   
-  if (numberArray.length < 15) {
-    throw new Error('號碼數量不足15個');
+  if (numberArray.length < 7) {
+    throw new Error('號碼數量不足7個');
   }
   
-  // 策略：使用優化的縮減輪轉系統
-  // 將15個號碼分成：核心組（前7個）+ 外圍組（後8個）
-  // 使用更智能的組合策略以減少注數
+  const suggestions = [];
   
-  const coreNumbers = numberArray.slice(0, 7); // 前7個最有可能的號碼
-  const outerNumbers = numberArray.slice(7, 15); // 後8個號碼
-  
-  const bets = [];
-  
-  // 策略1：核心組的完整組合（C(7,6) = 7注）
-  // 這確保如果核心組中有6個中獎，至少有一注會中獎
-  const coreCombinations = generateCombinations(coreNumbers, 6);
-  bets.push(...coreCombinations);
-  
-  // 策略2：核心組選5個 + 外圍組選1個（優化版）
-  // 只選擇核心組的前10個5組合，然後與外圍組組合
-  const core5Combinations = generateCombinations(coreNumbers, 5);
-  const selectedCore5 = core5Combinations.slice(0, Math.min(10, core5Combinations.length));
-  
-  selectedCore5.forEach(core5 => {
-    outerNumbers.forEach(outerNum => {
-      bets.push([...core5, outerNum].sort((a, b) => a - b));
-    });
-  });
-  
-  // 策略3：核心組選4個 + 外圍組選2個（優化版）
-  // 只選擇核心組的前8個4組合
-  const core4Combinations = generateCombinations(coreNumbers, 4);
-  const selectedCore4 = core4Combinations.slice(0, Math.min(8, core4Combinations.length));
-  const outer2Combinations = generateCombinations(outerNumbers, 2);
-  
-  selectedCore4.forEach(core4 => {
-    outer2Combinations.forEach(outer2 => {
-      bets.push([...core4, ...outer2].sort((a, b) => a - b));
-    });
-  });
-  
-  // 策略4：核心組選3個 + 外圍組選3個（優化版）
-  // 只選擇核心組的前5個3組合
-  const core3Combinations = generateCombinations(coreNumbers, 3);
-  const selectedCore3 = core3Combinations.slice(0, Math.min(5, core3Combinations.length));
-  const outer3Combinations = generateCombinations(outerNumbers, 3);
-  
-  selectedCore3.forEach(core3 => {
-    outer3Combinations.forEach(outer3 => {
-      bets.push([...core3, ...outer3].sort((a, b) => a - b));
-    });
-  });
-  
-  // 策略5：核心組選2個 + 外圍組選4個（少量組合）
-  const core2Combinations = generateCombinations(coreNumbers, 2);
-  const selectedCore2 = core2Combinations.slice(0, Math.min(3, core2Combinations.length));
-  const outer4Combinations = generateCombinations(outerNumbers, 4);
-  
-  selectedCore2.forEach(core2 => {
-    outer4Combinations.forEach(outer4 => {
-      bets.push([...core2, ...outer4].sort((a, b) => a - b));
-    });
-  });
-  
-  // 去重（可能會有重複的組合）
-  const uniqueBets = [];
-  const betStrings = new Set();
-  
-  bets.forEach(bet => {
-    const betStr = bet.sort((a, b) => a - b).join(',');
-    if (!betStrings.has(betStr)) {
-      betStrings.add(betStr);
-      uniqueBets.push(bet.sort((a, b) => a - b));
+  // 生成不同數量的複式投注建議（7個、8個、9個、10個、11個、12個號碼）
+  // 計算組合數：C(n, 6) = n! / (6! * (n-6)!)
+  const calculateCombinations = (n, k) => {
+    if (k > n || k < 0) return 0;
+    if (k === 0 || k === n) return 1;
+    k = Math.min(k, n - k); // 優化：使用對稱性
+    let result = 1;
+    for (let i = 0; i < k; i++) {
+      result = result * (n - i) / (i + 1);
     }
-  });
-  
-  // 計算總注數和總金額（每注$10）
-  const totalBets = uniqueBets.length;
-  const totalAmount = totalBets * 10;
-  
-  return {
-    numbers: numberArray,
-    bets: uniqueBets,
-    totalBets: totalBets,
-    totalAmount: totalAmount,
-    strategy: '縮減輪轉系統',
-    description: `使用核心組（前7個號碼）+ 外圍組（後8個號碼）的縮減輪轉系統，以 ${totalBets} 注覆蓋所有15個預測號碼，相比完整複式投注（5005注）大幅減少注數`
+    return Math.round(result);
   };
+  
+  // 生成7到12個號碼的複式投注建議
+  for (let numCount = 7; numCount <= Math.min(12, numberArray.length); numCount++) {
+    const selectedNumbers = numberArray.slice(0, numCount);
+    const totalBets = calculateCombinations(numCount, 6);
+    const totalAmount = totalBets * 10; // 每注$10
+    
+    // 如果注數超過1000注，只生成前1000注（避免記憶體問題）
+    // 實際計算：7個=7注, 8個=28注, 9個=84注, 10個=210注, 11個=462注, 12個=924注
+    // 所以12個號碼以內都可以完全生成
+    const maxBetsToGenerate = 1000;
+    const shouldGenerateAll = totalBets <= maxBetsToGenerate;
+    
+    let bets = [];
+    if (shouldGenerateAll) {
+      // 生成所有組合
+      bets = generateCombinations(selectedNumbers, 6);
+    } else {
+      // 如果注數太多（超過12個號碼），生成部分組合作為示例
+      // 使用迭代方式生成前1000個組合，避免生成所有組合
+      const allCombinations = generateCombinations(selectedNumbers, 6);
+      bets = allCombinations.slice(0, maxBetsToGenerate);
+    }
+    
+    suggestions.push({
+      numberCount: numCount,
+      numbers: selectedNumbers,
+      bets: bets,
+      totalBets: totalBets,
+      totalAmount: totalAmount,
+      isComplete: shouldGenerateAll,
+      strategy: `${numCount}個號碼複式投注`,
+      description: `選取前${numCount}個最有可能的號碼，系統自動組合所有可能的6個號碼組合，共${totalBets}注（$${totalAmount.toLocaleString()}）。${!shouldGenerateAll ? `（僅顯示前${maxBetsToGenerate}注作為示例）` : ''}`
+    });
+  }
+  
+  return suggestions;
 }
 
 module.exports = {
@@ -997,7 +964,7 @@ module.exports = {
   comparePrediction,
   adjustWeights,
   iterativeValidation,
-  generateCompoundBetSuggestion,
+  generateCompoundBetSuggestions,
   generateCompoundBetSuggestion100
 };
 

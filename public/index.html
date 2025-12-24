@@ -1039,9 +1039,8 @@
                 </div>
             `;
             
-            // 添加複式投注建議
-            if (analysisData.compoundBetSuggestion) {
-                const suggestion = analysisData.compoundBetSuggestion;
+            // 添加複式投注建議（多個選項）
+            if (analysisData.compoundBetSuggestions && analysisData.compoundBetSuggestions.length > 0) {
                 html += `
                 <div style="margin-top: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; border-radius: 15px; box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);">
                     <h3 style="color: white; margin-bottom: 20px; font-size: 1.8em; text-align: center; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
@@ -1049,80 +1048,101 @@
                     </h3>
                     <div style="background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 10px; margin-bottom: 20px;">
                         <p style="color: #333; font-size: 16px; margin-bottom: 15px; line-height: 1.8;">
-                            <strong>策略說明：</strong>${suggestion.description}
+                            <strong>複式投注說明：</strong>從7個或以上號碼中選取，系統會自動組合所有可能的6個號碼組合。號碼數量越多，投注金額也會隨之增加。
                         </p>
-                        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin: 15px 0;">
-                            <div style="background: #f8f9fa; padding: 12px 20px; border-radius: 8px; flex: 1; min-width: 150px;">
-                                <div style="font-size: 12px; color: #666; margin-bottom: 5px;">總注數</div>
-                                <div style="font-size: 24px; font-weight: bold; color: #667eea;">${suggestion.totalBets}</div>
-                            </div>
-                            <div style="background: #f8f9fa; padding: 12px 20px; border-radius: 8px; flex: 1; min-width: 150px;">
-                                <div style="font-size: 12px; color: #666; margin-bottom: 5px;">總金額</div>
-                                <div style="font-size: 24px; font-weight: bold; color: #f5576c;">$${suggestion.totalAmount.toLocaleString()}</div>
-                            </div>
-                        </div>
-                        <div style="margin-top: 20px;">
-                            <p style="color: #333; font-size: 14px; margin-bottom: 10px; font-weight: 600;">包含的15個號碼：</p>
-                            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    </div>
                 `;
                 
-                suggestion.numbers.forEach((num, index) => {
-                    const isCore = index < 7;
-                    html += `
-                        <span class="number-badge" style="
-                            background: ${isCore ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'};
-                            color: white;
-                            padding: 8px 15px;
-                            border-radius: 20px;
-                            font-weight: 600;
-                            font-size: 16px;
-                        ">${String(num).padStart(2, '0')}${isCore ? ' ⭐' : ''}</span>
-                    `;
-                });
-                
-                html += `
-                            </div>
-                            <p style="color: #999; font-size: 12px; margin-top: 10px; font-style: italic;">
-                                ⭐ 標記為核心號碼（前7個最有可能的號碼）
-                            </p>
-                        </div>
-                    </div>
+                // 顯示每個選項
+                analysisData.compoundBetSuggestions.forEach((suggestion, suggestionIndex) => {
+                    const isExpanded = suggestionIndex === 0; // 預設展開第一個選項
+                    const cardId = `compound-bet-${suggestionIndex}`;
                     
-                    <div style="background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 10px; max-height: 400px; overflow-y: auto;">
-                        <p style="color: #333; font-size: 16px; margin-bottom: 15px; font-weight: 600;">
-                            投注組合（共 ${suggestion.totalBets} 注）：
-                        </p>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; font-size: 14px;">
-                `;
-                
-                // 顯示所有投注組合（限制顯示前100注，避免頁面過長）
-                const displayBets = suggestion.bets.slice(0, 100);
-                displayBets.forEach((bet, index) => {
                     html += `
-                        <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; border-left: 3px solid #667eea;">
-                            <div style="color: #666; font-size: 11px; margin-bottom: 5px;">第 ${index + 1} 注</div>
-                            <div style="display: flex; flex-wrap: wrap; gap: 5px;">
-                    `;
-                    bet.forEach(num => {
-                        html += `<span class="number-badge" style="font-size: 13px; padding: 4px 8px;">${String(num).padStart(2, '0')}</span>`;
-                    });
-                    html += `
+                    <div style="background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 10px; margin-bottom: 15px; border-left: 4px solid #667eea;">
+                        <div id="header-${cardId}" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; cursor: pointer;" 
+                             onclick="toggleCompoundBet('${cardId}')">
+                            <div style="flex: 1;">
+                                <h4 style="color: #333; margin: 0 0 5px 0; font-size: 1.3em;">${suggestion.strategy}</h4>
+                                <p style="color: #666; margin: 0; font-size: 14px;">${suggestion.description}</p>
+                            </div>
+                            <div style="display: flex; gap: 15px; align-items: center;">
+                                <div style="text-align: center;">
+                                    <div style="font-size: 12px; color: #666; margin-bottom: 3px;">注數</div>
+                                    <div style="font-size: 20px; font-weight: bold; color: #667eea;">${suggestion.totalBets.toLocaleString()}</div>
+                                </div>
+                                <div style="text-align: center;">
+                                    <div style="font-size: 12px; color: #666; margin-bottom: 3px;">金額</div>
+                                    <div style="font-size: 20px; font-weight: bold; color: #f5576c;">$${suggestion.totalAmount.toLocaleString()}</div>
+                                </div>
+                                <div id="arrow-${cardId}" style="font-size: 24px; color: #667eea; margin-left: 10px;">${isExpanded ? '▼' : '▶'}</div>
                             </div>
                         </div>
+                        
+                        <div id="${cardId}" style="display: ${isExpanded ? 'block' : 'none'};">
+                            <div style="margin-top: 15px; margin-bottom: 15px;">
+                                <p style="color: #333; font-size: 14px; margin-bottom: 10px; font-weight: 600;">選取的${suggestion.numberCount}個號碼：</p>
+                                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    `;
+                    
+                    suggestion.numbers.forEach((num, index) => {
+                        html += `
+                            <span class="number-badge" style="
+                                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                color: white;
+                                padding: 8px 15px;
+                                border-radius: 20px;
+                                font-weight: 600;
+                                font-size: 16px;
+                            ">${String(num).padStart(2, '0')}</span>
+                        `;
+                    });
+                    
+                    html += `
+                                </div>
+                            </div>
+                            
+                            <div style="margin-top: 15px; max-height: 400px; overflow-y: auto;">
+                                <p style="color: #333; font-size: 14px; margin-bottom: 10px; font-weight: 600;">
+                                    投注組合（共 ${suggestion.totalBets.toLocaleString()} 注）${!suggestion.isComplete ? '（僅顯示前1000注）' : ''}：
+                                </p>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; font-size: 14px;">
+                    `;
+                    
+                    // 顯示投注組合（限制顯示前100注，避免頁面過長）
+                    const displayBets = suggestion.bets.slice(0, 100);
+                    displayBets.forEach((bet, index) => {
+                        html += `
+                            <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; border-left: 3px solid #667eea;">
+                                <div style="color: #666; font-size: 11px; margin-bottom: 5px;">第 ${index + 1} 注</div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                        `;
+                        bet.forEach(num => {
+                            html += `<span class="number-badge" style="font-size: 13px; padding: 4px 8px;">${String(num).padStart(2, '0')}</span>`;
+                        });
+                        html += `
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    if (suggestion.bets.length > 100) {
+                        html += `
+                            <div style="grid-column: 1 / -1; text-align: center; padding: 15px; color: #666; font-style: italic;">
+                                還有 ${(suggestion.bets.length - 100).toLocaleString()} 注未顯示...
+                            </div>
+                        `;
+                    }
+                    
+                    html += `
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     `;
                 });
                 
-                if (suggestion.bets.length > 100) {
-                    html += `
-                        <div style="grid-column: 1 / -1; text-align: center; padding: 15px; color: #666; font-style: italic;">
-                            還有 ${suggestion.bets.length - 100} 注未顯示...
-                        </div>
-                    `;
-                }
-                
                 html += `
-                        </div>
-                    </div>
                 </div>
                 `;
             }
@@ -1222,6 +1242,18 @@
             `;
             
             container.innerHTML = html;
+        }
+        
+        // 切換複式投注選項的展開/收起
+        function toggleCompoundBet(cardId) {
+            const card = document.getElementById(cardId);
+            const arrow = document.getElementById('arrow-' + cardId);
+            if (card && arrow) {
+                const isExpanded = card.style.display !== 'none';
+                card.style.display = isExpanded ? 'none' : 'block';
+                // 更新箭頭圖標
+                arrow.textContent = isExpanded ? '▶' : '▼';
+            }
         }
     </script>
 </body>
