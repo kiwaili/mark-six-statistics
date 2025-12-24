@@ -269,7 +269,23 @@
             `;
 
             results.forEach(result => {
-                const numbers = result.numbers.map(num => 
+                // Extract numbers from the string format
+                let numberArray = [];
+                if (result.numbers && result.numbers.length > 0) {
+                    if (typeof result.numbers[0] === 'string') {
+                        // Split by newlines and tabs, filter out empty strings, and parse numbers
+                        numberArray = result.numbers[0]
+                            .split(/[\n\t]+/)
+                            .filter(str => str.trim() !== '')
+                            .map(str => parseInt(str.trim(), 10))
+                            .filter(num => !isNaN(num));
+                    } else {
+                        // If it's already an array of numbers, use it directly
+                        numberArray = result.numbers;
+                    }
+                }
+                
+                const numbers = numberArray.map(num => 
                     `<span class="number-badge">${num}</span>`
                 ).join('');
 
