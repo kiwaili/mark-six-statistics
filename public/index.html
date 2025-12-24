@@ -96,6 +96,11 @@
             transform: none;
         }
 
+        #analysisButton {
+            display: none;
+            margin: 15px auto 0;
+        }
+
         .loading {
             text-align: center;
             padding: 20px;
@@ -180,6 +185,9 @@
             <button class="fetch-button" id="fetchButton" onclick="fetchLotteryResults()">
                 取得攪珠結果
             </button>
+            <button class="fetch-button" id="analysisButton" onclick="showAnalysis()">
+                分析
+            </button>
         </div>
 
         <div id="loading" class="loading" style="display: none;">
@@ -192,6 +200,9 @@
     </div>
 
     <script>
+        // 儲存當前結果資料
+        let currentResults = [];
+
         // 初始化年份選擇器，預設為今年
         document.addEventListener('DOMContentLoaded', function() {
             const currentYear = new Date().getFullYear();
@@ -225,6 +236,8 @@
             loading.style.display = 'block';
             error.style.display = 'none';
             resultsContainer.innerHTML = '';
+            // Hide analysis button when fetching new data
+            document.getElementById('analysisButton').style.display = 'none';
 
             try {
                 const url = `/api/lottery/results?startYear=${startYear}&endYear=${endYear}`;
@@ -232,7 +245,11 @@
                 const data = await response.json();
 
                 if (data.success) {
+                    // 儲存結果資料供分析使用
+                    currentResults = data.data;
                     displayResults(data.data, data.count);
+                    // Show analysis button after successful fetch
+                    document.getElementById('analysisButton').style.display = 'block';
                 } else {
                     throw new Error(data.message || '取得資料失敗');
                 }
@@ -303,6 +320,152 @@
                 </table>
             `;
 
+            container.innerHTML = html;
+        }
+
+        async function showAnalysis() {
+            const analysisButton = document.getElementById('analysisButton');
+            const error = document.getElementById('error');
+            const resultsContainer = document.getElementById('resultsContainer');
+            
+            if (currentResults.length === 0) {
+                error.textContent = '錯誤: 請先取得攪珠結果';
+                error.style.display = 'block';
+                return;
+            }
+            
+            // 重置狀態
+            analysisButton.disabled = true;
+            error.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/lottery/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        results: currentResults
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayAnalysisResults(data.data);
+                } else {
+                    throw new Error(data.message || '分析失敗');
+                }
+            } catch (err) {
+                error.textContent = '錯誤: ' + err.message;
+                error.style.display = 'block';
+            } finally {
+                analysisButton.disabled = false;
+            }
+        }
+        
+        function displayAnalysisResults(analysisData) {
+            const container = document.getElementById('resultsContainer');
+            
+            let html = `
+                <div class="stats">
+                    <h2 style="color: #667eea; margin-bottom: 15px;">📊 分析結果</h2>
+                    <p><strong>分析期數:</strong> ${analysisData.stats.totalPeriods} 期</p>
+                    <p><strong>總抽中次數:</strong> ${analysisData.stats.totalNumbers} 次</p>
+                    <p><strong>平均出現頻率:</strong> ${Math.round(analysisData.stats.averageFrequency * 100) / 100} 次/號碼</p>
+                </div>
+                
+                <div style="margin-top: 30px;">
+                    <h3 style="color: #333; margin-bottom: 20px; font-size: 1.5em;">
+                        🎯 預測下一期最有可能出現的 10 個號碼
+                    </h3>
+                    <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 30px;">
+            `;
+            
+            // 顯示前 10 名號碼
+            analysisData.topNumbers.forEach((item, index) => {
+                const rank = index + 1;
+                const size = rank <= 3 ? '25px' : '20px'; // 前三名稍大
+                const bgColor = rank === 1 ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' :
+                                rank === 2 ? 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' :
+                                rank === 3 ? 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' :
+                                'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                
+                html += `
+                    <div style="
+                        background: ${bgColor};
+                        color: white;
+                        padding: 20px;
+                        border-radius: 15px;
+                        text-align: center;
+                        min-width: 120px;
+                        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+                        transition: transform 0.3s ease;
+                    " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                        <div style="font-size: 12px; opacity: 0.9; margin-bottom: 5px;">排名 #${rank}</div>
+                        <div style="font-size: ${size}; font-weight: bold; margin: 10px 0;">${item.number}</div>
+                        <div style="font-size: 11px; opacity: 0.8;">綜合分數: ${item.score}</div>
+                    </div>
+                `;
+            });
+            
+            html += `
+                    </div>
+                </div>
+                
+                <div style="margin-top: 30px;">
+                    <h3 style="color: #333; margin-bottom: 15px;">📈 詳細統計</h3>
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                <th>排名</th>
+                                <th>號碼</th>
+                                <th>綜合分數</th>
+                                <th>總出現次數</th>
+                                <th>加權頻率</th>
+                                <th>間隔分數</th>
+                                <th>模式分數</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            
+            analysisData.topNumbers.forEach((item, index) => {
+                html += `
+                    <tr>
+                        <td><strong>#${index + 1}</strong></td>
+                        <td><span class="number-badge" style="font-size: 16px;">${item.number}</span></td>
+                        <td>${item.score}</td>
+                        <td>${item.frequency}</td>
+                        <td>${item.weightedFrequency}</td>
+                        <td>${item.gapScore}</td>
+                        <td>${item.patternScore}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div style="margin-top: 30px; background: #f8f9fa; padding: 20px; border-radius: 8px;">
+                    <h3 style="color: #333; margin-bottom: 15px;">📊 分析方法說明</h3>
+                    <p style="color: #666; line-height: 1.8; margin-bottom: 10px;">
+                        <strong>綜合分數計算方式:</strong>
+                    </p>
+                    <ul style="color: #666; line-height: 1.8; margin-left: 20px;">
+                        <li><strong>頻率分析 (30%):</strong> 統計每個號碼在歷史資料中的總出現次數</li>
+                        <li><strong>加權頻率 (35%):</strong> 近期出現的號碼給予更高權重，反映趨勢變化</li>
+                        <li><strong>間隔分析 (20%):</strong> 分析號碼多久沒出現，間隔越長表示可能"該出現了"</li>
+                        <li><strong>模式分析 (15%):</strong> 分析最近幾期的出現模式，捕捉短期趨勢</li>
+                    </ul>
+                    <p style="color: #999; font-size: 12px; margin-top: 15px; font-style: italic;">
+                        ⚠️ 注意：此分析僅供參考，彩票結果具有隨機性，無法保證預測準確性。
+                    </p>
+                </div>
+            `;
+            
             container.innerHTML = html;
         }
     </script>
