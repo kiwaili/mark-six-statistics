@@ -11,4 +11,5 @@ build
 .idea
 *.md
 !README.md
-
+cloudbuild.yaml
+.dockerignore
