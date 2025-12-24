@@ -813,7 +813,49 @@
                             <tbody>
             `;
             
-            validationData.validationResults.forEach((result, index) => {
+            // 解析期數以便排序（支援格式：25/132 或 2025001）
+            const parsePeriodForSort = (periodNumber) => {
+                if (!periodNumber) return { year: 0, period: 0 };
+                
+                // 格式 25/132 (年份/期數)
+                const match1 = periodNumber.match(/^(\d{2})\/(\d+)$/);
+                if (match1) {
+                    const year = parseInt(match1[1], 10);
+                    const period = parseInt(match1[2], 10);
+                    // 將2位數年份轉換為4位數（假設25代表2025）
+                    const fullYear = year < 50 ? 2000 + year : 1900 + year;
+                    return { year: fullYear, period: period };
+                }
+                
+                // 格式 2025001 (年份+期數)
+                const match2 = periodNumber.match(/^(\d{4})(\d+)$/);
+                if (match2) {
+                    const year = parseInt(match2[1], 10);
+                    const period = parseInt(match2[2], 10);
+                    return { year: year, period: period };
+                }
+                
+                return { year: 0, period: 0 };
+            };
+            
+            // 比較兩個期數，用於排序（新至舊：較新的期數排在前面）
+            const comparePeriods = (a, b) => {
+                const periodA = parsePeriodForSort(a.targetPeriod);
+                const periodB = parsePeriodForSort(b.targetPeriod);
+                
+                // 先比較年份，年份大的（新的）排在前面
+                if (periodA.year !== periodB.year) {
+                    return periodB.year - periodA.year;
+                }
+                
+                // 年份相同，比較期數，期數大的（新的）排在前面
+                return periodB.period - periodA.period;
+            };
+            
+            // 對驗證結果進行排序（按目標期數新至舊排序，不改變計算，只改變顯示）
+            const sortedResults = [...validationData.validationResults].sort(comparePeriods);
+            
+            sortedResults.forEach((result, index) => {
                 const hitCount = result.comparison.hitCount;
                 const accuracy = result.comparison.accuracy;
                 const coverage = result.comparison.coverage;
