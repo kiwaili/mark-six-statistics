@@ -71,3 +71,56 @@ npm run dev
 - **date**: 攪珠日期
 - **numbers**: 攪出的號碼陣列
 
+## 部署到 Google Cloud Run
+
+### 前置需求
+
+1. 安裝 [Google Cloud SDK](https://cloud.google.com/sdk/docs/install)
+2. 設定 Google Cloud 專案：
+   ```bash
+   gcloud config set project YOUR_PROJECT_ID
+   ```
+
+### 方法一：使用 gcloud 指令部署
+
+1. 建置並推送 Docker 映像檔：
+   ```bash
+   gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/mark-six-statistics
+   ```
+
+2. 部署到 Cloud Run：
+   ```bash
+   gcloud run deploy mark-six-statistics \
+     --image gcr.io/YOUR_PROJECT_ID/mark-six-statistics \
+     --platform managed \
+     --region asia-east1 \
+     --allow-unauthenticated
+   ```
+
+### 方法二：使用 Cloud Build (CI/CD)
+
+1. 啟用必要的 API：
+   ```bash
+   gcloud services enable cloudbuild.googleapis.com
+   gcloud services enable run.googleapis.com
+   ```
+
+2. 提交程式碼到 Cloud Source Repositories 或連接 GitHub，然後觸發建置：
+   ```bash
+   gcloud builds submit --config cloudbuild.yaml
+   ```
+
+### 本地測試 Docker 映像檔
+
+```bash
+# 建置映像檔
+docker build -t mark-six-statistics .
+
+# 執行容器
+docker run -p 8080:8080 mark-six-statistics
+```
+
+### 環境變數
+
+Cloud Run 會自動設定 `PORT` 環境變數（預設為 8080）。應用程式會自動使用此變數。
+

@@ -3,7 +3,7 @@ const path = require('path');
 const lotteryRoutes = require('./routes/lottery');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 // 中介軟體
 app.use(express.json());
@@ -19,7 +19,8 @@ app.get('/', (req, res) => {
 });
 
 // 啟動伺服器
-app.listen(PORT, () => {
-  console.log(`伺服器運行在 http://localhost:${PORT}`);
+// Cloud Run requires listening on 0.0.0.0
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`伺服器運行在 http://0.0.0.0:${PORT}`);
 });
 
