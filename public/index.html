@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>六合彩攪珠結果</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft JhengHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            padding: 30px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        .button-container {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .fetch-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 18px;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .fetch-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        .fetch-button:active {
+            transform: translateY(0);
+        }
+
+        .fetch-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+            font-size: 18px;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #c33;
+        }
+
+        .results-container {
+            margin-top: 30px;
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .results-table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        .results-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .results-table tr:hover {
+            background: #f5f5f5;
+        }
+
+        .results-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .number-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            margin: 2px;
+            font-weight: 600;
+        }
+
+        .stats {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .stats p {
+            margin: 5px 0;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>六合彩攪珠結果</h1>
+        
+        <div class="button-container">
+            <button class="fetch-button" id="fetchButton" onclick="fetchLotteryResults()">
+                取得攪珠結果
+            </button>
+        </div>
+
+        <div id="loading" class="loading" style="display: none;">
+            正在取得資料...
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="resultsContainer" class="results-container"></div>
+    </div>
+
+    <script>
+        async function fetchLotteryResults() {
+            const button = document.getElementById('fetchButton');
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const resultsContainer = document.getElementById('resultsContainer');
+
+            // 重置狀態
+            button.disabled = true;
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            resultsContainer.innerHTML = '';
+
+            try {
+                const response = await fetch('/api/lottery/results');
+                const data = await response.json();
+
+                if (data.success) {
+                    displayResults(data.data, data.count);
+                } else {
+                    throw new Error(data.message || '取得資料失敗');
+                }
+            } catch (err) {
+                error.textContent = '錯誤: ' + err.message;
+                error.style.display = 'block';
+            } finally {
+                button.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        function displayResults(results, count) {
+            const container = document.getElementById('resultsContainer');
+
+            if (results.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #666;">暫無資料</p>';
+                return;
+            }
+
+            let html = `
+                <div class="stats">
+                    <p><strong>共取得 ${count} 筆記錄</strong></p>
+                </div>
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>攪珠期數</th>
+                            <th>攪珠日期</th>
+                            <th>攪出號碼</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            results.forEach(result => {
+                const numbers = result.numbers.map(num => 
+                    `<span class="number-badge">${num}</span>`
+                ).join('');
+
+                html += `
+                    <tr>
+                        <td>${result.periodNumber}</td>
+                        <td>${result.date}</td>
+                        <td>${numbers || '無'}</td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                    </tbody>
+                </table>
+            `;
+
+            container.innerHTML = html;
+        }
+    </script>
+</body>
+</html>
+
