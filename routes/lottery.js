@@ -60,5 +60,38 @@ router.post('/analyze', async (req, res) => {
   }
 });
 
+/**
+ * 迭代驗證分析：從最新期數往前推N期開始，逐步驗證並調整
+ * POST /api/lottery/validate
+ * Body: { results: [...], lookbackPeriods: 10 }
+ */
+router.post('/validate', async (req, res) => {
+  try {
+    const results = req.body.results;
+    const lookbackPeriods = req.body.lookbackPeriods || 10;
+    
+    if (!results || !Array.isArray(results) || results.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: '請提供有效的攪珠結果資料'
+      });
+    }
+    
+    const validation = analysisService.iterativeValidation(results, lookbackPeriods);
+    
+    res.json({
+      success: true,
+      data: validation
+    });
+  } catch (error) {
+    console.error('迭代驗證失敗:', error);
+    res.status(500).json({
+      success: false,
+      message: '迭代驗證失敗',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
 

@@ -188,6 +188,9 @@
             <button class="fetch-button" id="analysisButton" onclick="showAnalysis()">
                 分析
             </button>
+            <button class="fetch-button" id="validateButton" onclick="showValidation()" style="display: none;">
+                迭代驗證
+            </button>
         </div>
 
         <div id="loading" class="loading" style="display: none;">
@@ -236,8 +239,9 @@
             loading.style.display = 'block';
             error.style.display = 'none';
             resultsContainer.innerHTML = '';
-            // Hide analysis button when fetching new data
+            // Hide analysis and validation buttons when fetching new data
             document.getElementById('analysisButton').style.display = 'none';
+            document.getElementById('validateButton').style.display = 'none';
 
             try {
                 const url = `/api/lottery/results?startYear=${startYear}&endYear=${endYear}`;
@@ -248,8 +252,9 @@
                     // 儲存結果資料供分析使用
                     currentResults = data.data;
                     displayResults(data.data, data.count);
-                    // Show analysis button after successful fetch
+                    // Show analysis and validation buttons after successful fetch
                     document.getElementById('analysisButton').style.display = 'block';
+                    document.getElementById('validateButton').style.display = 'block';
                 } else {
                     throw new Error(data.message || '取得資料失敗');
                 }
@@ -462,6 +467,180 @@
                     </ul>
                     <p style="color: #999; font-size: 12px; margin-top: 15px; font-style: italic;">
                         ⚠️ 注意：此分析僅供參考，彩票結果具有隨機性，無法保證預測準確性。
+                    </p>
+                </div>
+            `;
+            
+            container.innerHTML = html;
+        }
+
+        async function showValidation() {
+            const validateButton = document.getElementById('validateButton');
+            const error = document.getElementById('error');
+            const resultsContainer = document.getElementById('resultsContainer');
+            const loading = document.getElementById('loading');
+            
+            if (currentResults.length === 0) {
+                error.textContent = '錯誤: 請先取得攪珠結果';
+                error.style.display = 'block';
+                return;
+            }
+            
+            // 重置狀態
+            validateButton.disabled = true;
+            error.style.display = 'none';
+            loading.style.display = 'block';
+            loading.textContent = '正在進行迭代驗證...';
+            
+            try {
+                const response = await fetch('/api/lottery/validate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        results: currentResults,
+                        lookbackPeriods: 10
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayValidationResults(data.data);
+                } else {
+                    throw new Error(data.message || '迭代驗證失敗');
+                }
+            } catch (err) {
+                error.textContent = '錯誤: ' + err.message;
+                error.style.display = 'block';
+            } finally {
+                validateButton.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        function displayValidationResults(validationData) {
+            const container = document.getElementById('resultsContainer');
+            
+            let html = `
+                <div class="stats">
+                    <h2 style="color: #667eea; margin-bottom: 15px;">🔄 迭代驗證結果</h2>
+                    <p><strong>最新期數:</strong> ${validationData.latestPeriod}</p>
+                    <p><strong>開始期數:</strong> ${validationData.startPeriod}</p>
+                    <p><strong>驗證次數:</strong> ${validationData.totalValidations} 次</p>
+                </div>
+                
+                <div style="margin-top: 30px; background: #e8f4f8; padding: 20px; border-radius: 8px; border-left: 4px solid #667eea;">
+                    <h3 style="color: #333; margin-bottom: 15px;">📊 總體統計</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <div style="background: white; padding: 15px; border-radius: 8px;">
+                            <div style="font-size: 12px; color: #666; margin-bottom: 5px;">總命中數</div>
+                            <div style="font-size: 24px; font-weight: bold; color: #667eea;">${validationData.statistics.totalHits}</div>
+                        </div>
+                        <div style="background: white; padding: 15px; border-radius: 8px;">
+                            <div style="font-size: 12px; color: #666; margin-bottom: 5px;">平均每期命中數</div>
+                            <div style="font-size: 24px; font-weight: bold; color: #667eea;">${Math.round(validationData.statistics.averageHitsPerPeriod * 100) / 100}</div>
+                        </div>
+                        <div style="background: white; padding: 15px; border-radius: 8px;">
+                            <div style="font-size: 12px; color: #666; margin-bottom: 5px;">平均準確率</div>
+                            <div style="font-size: 24px; font-weight: bold; color: #667eea;">${validationData.statistics.averageAccuracy}%</div>
+                        </div>
+                        <div style="background: white; padding: 15px; border-radius: 8px;">
+                            <div style="font-size: 12px; color: #666; margin-bottom: 5px;">平均覆蓋率</div>
+                            <div style="font-size: 24px; font-weight: bold; color: #667eea;">${validationData.statistics.averageCoverage}%</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 30px; background: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;">
+                    <h3 style="color: #333; margin-bottom: 15px;">⚙️ 最終調整後的權重</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+                        <div style="background: white; padding: 10px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 12px; color: #666;">頻率</div>
+                            <div style="font-size: 18px; font-weight: bold; color: #333;">${Math.round(validationData.finalWeights.frequency * 100)}%</div>
+                        </div>
+                        <div style="background: white; padding: 10px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 12px; color: #666;">加權頻率</div>
+                            <div style="font-size: 18px; font-weight: bold; color: #333;">${Math.round(validationData.finalWeights.weightedFrequency * 100)}%</div>
+                        </div>
+                        <div style="background: white; padding: 10px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 12px; color: #666;">間隔</div>
+                            <div style="font-size: 18px; font-weight: bold; color: #333;">${Math.round(validationData.finalWeights.gap * 100)}%</div>
+                        </div>
+                        <div style="background: white; padding: 10px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 12px; color: #666;">模式</div>
+                            <div style="font-size: 18px; font-weight: bold; color: #333;">${Math.round(validationData.finalWeights.pattern * 100)}%</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 30px;">
+                    <h3 style="color: #333; margin-bottom: 20px; font-size: 1.5em;">📋 詳細驗證記錄</h3>
+                    <div style="overflow-x: auto;">
+                        <table class="results-table">
+                            <thead>
+                                <tr>
+                                    <th>訓練期數</th>
+                                    <th>目標期數</th>
+                                    <th>預測號碼</th>
+                                    <th>實際號碼</th>
+                                    <th>命中數</th>
+                                    <th>準確率</th>
+                                    <th>覆蓋率</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+            
+            validationData.validationResults.forEach((result, index) => {
+                const hitCount = result.comparison.hitCount;
+                const accuracy = result.comparison.accuracy;
+                const coverage = result.comparison.coverage;
+                
+                // 命中數的顏色標記
+                const hitColor = hitCount >= 3 ? '#28a745' : hitCount >= 1 ? '#ffc107' : '#dc3545';
+                
+                // 格式化號碼顯示
+                const predictedNumbers = result.predictedNumbers.map(num => 
+                    `<span class="number-badge" style="background: ${result.comparison.hits.includes(num) ? '#28a745' : '#667eea'}">${num}</span>`
+                ).join('');
+                
+                const actualNumbers = result.actualNumbers.map(num => 
+                    `<span class="number-badge">${num}</span>`
+                ).join('');
+                
+                html += `
+                    <tr>
+                        <td><strong>${result.trainingPeriod}</strong></td>
+                        <td><strong>${result.targetPeriod}</strong></td>
+                        <td>${predictedNumbers || '無'}</td>
+                        <td>${actualNumbers || '無'}</td>
+                        <td style="color: ${hitColor}; font-weight: bold; font-size: 18px;">${hitCount}</td>
+                        <td>${Math.round(accuracy * 100) / 100}%</td>
+                        <td>${Math.round(coverage * 100) / 100}%</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 30px; background: #f8f9fa; padding: 20px; border-radius: 8px;">
+                    <h3 style="color: #333; margin-bottom: 15px;">📖 驗證說明</h3>
+                    <ul style="color: #666; line-height: 1.8; margin-left: 20px;">
+                        <li><strong>訓練期數:</strong> 用於分析的歷史資料截止期數</li>
+                        <li><strong>目標期數:</strong> 要預測的期數</li>
+                        <li><strong>命中數:</strong> 預測號碼中實際開出的號碼數量</li>
+                        <li><strong>準確率:</strong> 命中數 / 預測號碼總數 × 100%</li>
+                        <li><strong>覆蓋率:</strong> 命中數 / 實際開出號碼總數 × 100%</li>
+                        <li><strong>權重調整:</strong> 系統會根據每期的驗證結果自動調整分析權重，以優化預測效果</li>
+                    </ul>
+                    <p style="color: #999; font-size: 12px; margin-top: 15px; font-style: italic;">
+                        💡 提示：綠色標記的預測號碼表示成功命中，紫色表示未命中。
                     </p>
                 </div>
             `;
