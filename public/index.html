@@ -2,7 +2,9 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>六合彩攪珠結果</title>
     <style>
         * {
@@ -16,6 +18,10 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
+            padding-top: max(20px, env(safe-area-inset-top));
+            padding-bottom: max(20px, env(safe-area-inset-bottom));
+            padding-left: max(20px, env(safe-area-inset-left));
+            padding-right: max(20px, env(safe-area-inset-right));
         }
 
         .container {
@@ -173,6 +179,168 @@
             margin: 5px 0;
             color: #666;
         }
+
+        /* Mobile Responsive Styles */
+        @media screen and (max-width: 768px) {
+            body {
+                padding: 10px;
+                padding-top: max(10px, env(safe-area-inset-top));
+                padding-bottom: max(10px, env(safe-area-inset-bottom));
+                padding-left: max(10px, env(safe-area-inset-left));
+                padding-right: max(10px, env(safe-area-inset-right));
+            }
+
+            .container {
+                padding: 15px;
+                border-radius: 10px;
+            }
+
+            h1 {
+                font-size: 1.8em;
+                margin-bottom: 20px;
+            }
+
+            .year-selector {
+                flex-direction: column;
+                gap: 10px;
+                margin-bottom: 15px;
+            }
+
+            .year-selector label {
+                font-size: 14px;
+            }
+
+            .year-selector input {
+                width: 100%;
+                max-width: 200px;
+                padding: 12px;
+                font-size: 16px; /* Prevent zoom on iOS */
+                min-height: 44px; /* iOS touch target minimum */
+                -webkit-appearance: none;
+                appearance: none;
+            }
+
+            .fetch-button {
+                width: 100%;
+                max-width: 100%;
+                padding: 14px 20px;
+                font-size: 16px;
+                margin-top: 10px;
+                min-height: 44px; /* iOS touch target minimum */
+                -webkit-tap-highlight-color: rgba(102, 126, 234, 0.3);
+            }
+
+            .action-buttons {
+                flex-direction: column;
+                gap: 10px;
+                width: 100%;
+            }
+
+            .action-buttons .fetch-button {
+                width: 100%;
+            }
+
+            .results-table {
+                font-size: 14px;
+            }
+
+            .number-badge {
+                font-size: 14px;
+                padding: 4px 10px;
+                margin: 3px;
+            }
+
+            .stats {
+                padding: 15px;
+                font-size: 14px;
+            }
+
+            .stats h2,
+            .stats h3 {
+                font-size: 1.3em;
+            }
+        }
+
+        @media screen and (max-width: 480px) {
+            h1 {
+                font-size: 1.5em;
+            }
+
+            .container {
+                padding: 12px;
+            }
+
+            .fetch-button {
+                padding: 12px 18px;
+                font-size: 15px;
+            }
+
+            .results-table {
+                font-size: 13px;
+            }
+        }
+
+        /* Make tables scrollable on mobile */
+        .table-wrapper {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin: 20px 0;
+            width: 100%;
+        }
+
+        @media screen and (max-width: 768px) {
+            .table-wrapper {
+                margin: 15px -12px;
+                padding: 0 12px;
+            }
+
+            .table-wrapper table {
+                min-width: 600px;
+            }
+
+            .results-table {
+                font-size: 13px;
+            }
+
+            .results-table th,
+            .results-table td {
+                padding: 10px 8px;
+            }
+        }
+
+        /* Adjust prediction cards for mobile */
+        @media screen and (max-width: 768px) {
+            .prediction-cards {
+                flex-direction: column !important;
+                gap: 10px !important;
+            }
+
+            .prediction-card {
+                min-width: 100% !important;
+                max-width: 100% !important;
+                padding: 15px !important;
+                flex: 1 1 100% !important;
+            }
+        }
+
+        @media screen and (max-width: 480px) {
+            .prediction-card {
+                padding: 12px !important;
+            }
+        }
+
+        /* Grid adjustments for mobile */
+        @media screen and (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr !important;
+                gap: 10px !important;
+            }
+
+            .weight-grid {
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 8px !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -290,15 +458,16 @@
                 <div class="stats">
                     <p><strong>共取得 ${count} 筆記錄</strong></p>
                 </div>
-                <table class="results-table">
-                    <thead>
-                        <tr>
-                            <th>攪珠期數</th>
-                            <th>攪珠日期</th>
-                            <th>攪出號碼</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+                <div class="table-wrapper">
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                <th>攪珠期數</th>
+                                <th>攪珠日期</th>
+                                <th>攪出號碼</th>
+                            </tr>
+                        </thead>
+                        <tbody>
             `;
 
             results.forEach(result => {
@@ -324,16 +493,17 @@
 
                 html += `
                     <tr>
-                        <td>${result.periodNumber}</td>
-                        <td>${result.date}</td>
-                        <td>${numbers || '無'}</td>
+                        <td data-label="攪珠期數">${result.periodNumber}</td>
+                        <td data-label="攪珠日期">${result.date}</td>
+                        <td data-label="攪出號碼">${numbers || '無'}</td>
                     </tr>
                 `;
             });
 
             html += `
-                    </tbody>
-                </table>
+                        </tbody>
+                    </table>
+                </div>
             `;
 
             container.innerHTML = html;
@@ -399,6 +569,7 @@
             `;
             
             // 顯示前 10 名號碼
+            html += `<div class="prediction-cards" style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 30px;">`;
             analysisData.topNumbers.forEach((item, index) => {
                 const rank = index + 1;
                 const size = rank <= 3 ? '25px' : '20px'; // 前三名稍大
@@ -408,13 +579,15 @@
                                 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
                 
                 html += `
-                    <div style="
+                    <div class="prediction-card" style="
                         background: ${bgColor};
                         color: white;
                         padding: 20px;
                         border-radius: 15px;
                         text-align: center;
                         min-width: 120px;
+                        flex: 1 1 calc(50% - 8px);
+                        max-width: calc(50% - 8px);
                         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
                         transition: transform 0.3s ease;
                     " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
@@ -424,6 +597,7 @@
                     </div>
                 `;
             });
+            html += `</div>`;
             
             html += `
                     </div>
@@ -431,38 +605,40 @@
                 
                 <div style="margin-top: 30px;">
                     <h3 style="color: #333; margin-bottom: 15px;">📈 詳細統計</h3>
-                    <table class="results-table">
-                        <thead>
-                            <tr>
-                                <th>排名</th>
-                                <th>號碼</th>
-                                <th>綜合分數</th>
-                                <th>總出現次數</th>
-                                <th>加權頻率</th>
-                                <th>間隔分數</th>
-                                <th>模式分數</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+                    <div class="table-wrapper">
+                        <table class="results-table">
+                            <thead>
+                                <tr>
+                                    <th>排名</th>
+                                    <th>號碼</th>
+                                    <th>綜合分數</th>
+                                    <th>總出現次數</th>
+                                    <th>加權頻率</th>
+                                    <th>間隔分數</th>
+                                    <th>模式分數</th>
+                                </tr>
+                            </thead>
+                            <tbody>
             `;
             
             analysisData.topNumbers.forEach((item, index) => {
                 html += `
                     <tr>
-                        <td><strong>#${index + 1}</strong></td>
-                        <td><span class="number-badge" style="font-size: 16px;">${item.number}</span></td>
-                        <td>${item.score}</td>
-                        <td>${item.frequency}</td>
-                        <td>${item.weightedFrequency}</td>
-                        <td>${item.gapScore}</td>
-                        <td>${item.patternScore}</td>
+                        <td data-label="排名"><strong>#${index + 1}</strong></td>
+                        <td data-label="號碼"><span class="number-badge" style="font-size: 16px;">${item.number}</span></td>
+                        <td data-label="綜合分數">${item.score}</td>
+                        <td data-label="總出現次數">${item.frequency}</td>
+                        <td data-label="加權頻率">${item.weightedFrequency}</td>
+                        <td data-label="間隔分數">${item.gapScore}</td>
+                        <td data-label="模式分數">${item.patternScore}</td>
                     </tr>
                 `;
             });
             
             html += `
-                        </tbody>
-                    </table>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
                 
                 <div style="margin-top: 30px; background: #f8f9fa; padding: 20px; border-radius: 8px;">
@@ -550,7 +726,7 @@
                 
                 <div style="margin-top: 30px; background: #e8f4f8; padding: 20px; border-radius: 8px; border-left: 4px solid #667eea;">
                     <h3 style="color: #333; margin-bottom: 15px;">📊 總體統計</h3>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                    <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
                         <div style="background: white; padding: 15px; border-radius: 8px;">
                             <div style="font-size: 12px; color: #666; margin-bottom: 5px;">總命中數</div>
                             <div style="font-size: 24px; font-weight: bold; color: #667eea;">${validationData.statistics.totalHits}</div>
@@ -572,7 +748,7 @@
                 
                 <div style="margin-top: 30px; background: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;">
                     <h3 style="color: #333; margin-bottom: 15px;">⚙️ 最終調整後的權重</h3>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+                    <div class="weight-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
                         <div style="background: white; padding: 10px; border-radius: 8px; text-align: center;">
                             <div style="font-size: 12px; color: #666;">頻率</div>
                             <div style="font-size: 18px; font-weight: bold; color: #333;">${Math.round(validationData.finalWeights.frequency * 100)}%</div>
@@ -594,7 +770,7 @@
                 
                 <div style="margin-top: 30px;">
                     <h3 style="color: #333; margin-bottom: 20px; font-size: 1.5em;">📋 詳細驗證記錄</h3>
-                    <div style="overflow-x: auto;">
+                    <div class="table-wrapper">
                         <table class="results-table">
                             <thead>
                                 <tr>
@@ -629,13 +805,13 @@
                 
                 html += `
                     <tr>
-                        <td><strong>${result.trainingPeriod}</strong></td>
-                        <td><strong>${result.targetPeriod}</strong></td>
-                        <td>${predictedNumbers || '無'}</td>
-                        <td>${actualNumbers || '無'}</td>
-                        <td style="color: ${hitColor}; font-weight: bold; font-size: 18px;">${hitCount}</td>
-                        <td>${Math.round(accuracy * 100) / 100}%</td>
-                        <td>${Math.round(coverage * 100) / 100}%</td>
+                        <td data-label="訓練期數"><strong>${result.trainingPeriod}</strong></td>
+                        <td data-label="目標期數"><strong>${result.targetPeriod}</strong></td>
+                        <td data-label="預測號碼">${predictedNumbers || '無'}</td>
+                        <td data-label="實際號碼">${actualNumbers || '無'}</td>
+                        <td data-label="命中數" style="color: ${hitColor}; font-weight: bold; font-size: 18px;">${hitCount}</td>
+                        <td data-label="準確率">${Math.round(accuracy * 100) / 100}%</td>
+                        <td data-label="覆蓋率">${Math.round(coverage * 100) / 100}%</td>
                     </tr>
                 `;
             });
@@ -743,17 +919,17 @@
             }
             
             let html = `
-                <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 30px; border-radius: 15px; margin-bottom: 30px; color: white; text-align: center; box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);">
-                    <h2 style="margin: 0 0 10px 0; font-size: 2.5em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">🎯 最新預測</h2>
-                    <p style="margin: 0; font-size: 1.3em; opacity: 0.95;">基於 ${analysisData.stats.totalPeriods} 期歷史數據分析</p>
-                    <p style="margin: 15px 0 0 0; font-size: 1.2em; opacity: 0.9;">預測期數: <strong style="font-size: 1.3em;">${nextPeriodStr}</strong></p>
+                <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 20px; border-radius: 15px; margin-bottom: 20px; color: white; text-align: center; box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);">
+                    <h2 style="margin: 0 0 10px 0; font-size: 1.8em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">🎯 最新預測</h2>
+                    <p style="margin: 0; font-size: 1.1em; opacity: 0.95;">基於 ${analysisData.stats.totalPeriods} 期歷史數據分析</p>
+                    <p style="margin: 15px 0 0 0; font-size: 1em; opacity: 0.9;">預測期數: <strong style="font-size: 1.2em;">${nextPeriodStr}</strong></p>
                 </div>
                 
                 <div style="margin-top: 30px;">
                     <h3 style="color: #333; margin-bottom: 25px; font-size: 1.8em; text-align: center;">
                         📊 預測最有可能出現的 15 個號碼
                     </h3>
-                    <div style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-bottom: 30px;">
+                    <div class="prediction-cards" style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-bottom: 30px;">
             `;
             
             // 顯示前 15 名號碼（根據最新分析結果）
@@ -770,13 +946,15 @@
                 const shadowStyle = rank <= 3 ? '0 6px 25px rgba(0, 0, 0, 0.3)' : '0 4px 15px rgba(0, 0, 0, 0.2)';
                 
                 html += `
-                    <div style="
+                    <div class="prediction-card" style="
                         background: ${bgColor};
                         color: white;
                         padding: 25px;
                         border-radius: 15px;
                         text-align: center;
                         min-width: 140px;
+                        flex: 1 1 calc(50% - 8px);
+                        max-width: calc(50% - 8px);
                         box-shadow: ${shadowStyle};
                         border: ${borderStyle};
                         transition: transform 0.3s ease;
@@ -797,38 +975,40 @@
                 
                 <div style="margin-top: 30px; background: #f8f9fa; padding: 25px; border-radius: 10px;">
                     <h3 style="color: #333; margin-bottom: 15px;">📈 詳細分析</h3>
-                    <table class="results-table">
-                        <thead>
-                            <tr>
-                                <th>排名</th>
-                                <th>號碼</th>
-                                <th>綜合分數</th>
-                                <th>總出現次數</th>
-                                <th>加權頻率</th>
-                                <th>間隔分數</th>
-                                <th>模式分數</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+                    <div class="table-wrapper">
+                        <table class="results-table">
+                            <thead>
+                                <tr>
+                                    <th>排名</th>
+                                    <th>號碼</th>
+                                    <th>綜合分數</th>
+                                    <th>總出現次數</th>
+                                    <th>加權頻率</th>
+                                    <th>間隔分數</th>
+                                    <th>模式分數</th>
+                                </tr>
+                            </thead>
+                            <tbody>
             `;
             
             analysisData.topNumbers.forEach((item, index) => {
                 html += `
                     <tr>
-                        <td><strong>#${index + 1}</strong></td>
-                        <td><span class="number-badge" style="font-size: 18px; font-weight: bold;">${String(item.number).padStart(2, '0')}</span></td>
-                        <td><strong>${item.score}</strong></td>
-                        <td>${item.frequency}</td>
-                        <td>${item.weightedFrequency}</td>
-                        <td>${item.gapScore}</td>
-                        <td>${item.patternScore}</td>
+                        <td data-label="排名"><strong>#${index + 1}</strong></td>
+                        <td data-label="號碼"><span class="number-badge" style="font-size: 18px; font-weight: bold;">${String(item.number).padStart(2, '0')}</span></td>
+                        <td data-label="綜合分數"><strong>${item.score}</strong></td>
+                        <td data-label="總出現次數">${item.frequency}</td>
+                        <td data-label="加權頻率">${item.weightedFrequency}</td>
+                        <td data-label="間隔分數">${item.gapScore}</td>
+                        <td data-label="模式分數">${item.patternScore}</td>
                     </tr>
                 `;
             });
             
             html += `
-                        </tbody>
-                    </table>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
                 
                 <div style="margin-top: 30px; background: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;">
