@@ -36,6 +36,7 @@ router.get('/results', async (req, res) => {
 router.post('/analyze', async (req, res) => {
   try {
     const results = req.body.results;
+    const weights = req.body.weights; // 可選的權重參數
     
     if (!results || !Array.isArray(results) || results.length === 0) {
       return res.status(400).json({
@@ -44,7 +45,8 @@ router.post('/analyze', async (req, res) => {
       });
     }
     
-    const analysis = analysisService.analyzeNumbers(results);
+    // 如果提供了權重參數，使用它；否則使用預設權重
+    const analysis = analysisService.analyzeNumbers(results, weights || {});
     
     res.json({
       success: true,

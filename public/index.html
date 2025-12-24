@@ -191,6 +191,9 @@
             <button class="fetch-button" id="validateButton" onclick="showValidation()" style="display: none;">
                 迭代驗證
             </button>
+            <button class="fetch-button" id="predictButton" onclick="showLatestPrediction()" style="display: none; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                🎯 最新預測
+            </button>
         </div>
 
         <div id="loading" class="loading" style="display: none;">
@@ -239,9 +242,10 @@
             loading.style.display = 'block';
             error.style.display = 'none';
             resultsContainer.innerHTML = '';
-            // Hide analysis and validation buttons when fetching new data
+            // Hide analysis, validation and prediction buttons when fetching new data
             document.getElementById('analysisButton').style.display = 'none';
             document.getElementById('validateButton').style.display = 'none';
+            document.getElementById('predictButton').style.display = 'none';
 
             try {
                 const url = `/api/lottery/results?startYear=${startYear}&endYear=${endYear}`;
@@ -252,9 +256,10 @@
                     // 儲存結果資料供分析使用
                     currentResults = data.data;
                     displayResults(data.data, data.count);
-                    // Show analysis and validation buttons after successful fetch
+                    // Show analysis, validation and prediction buttons after successful fetch
                     document.getElementById('analysisButton').style.display = 'block';
                     document.getElementById('validateButton').style.display = 'block';
+                    document.getElementById('predictButton').style.display = 'block';
                 } else {
                     throw new Error(data.message || '取得資料失敗');
                 }
@@ -520,7 +525,13 @@
             }
         }
 
+        // 儲存驗證後的最終權重（如果進行了迭代驗證）
+        let optimizedWeights = null;
+
         function displayValidationResults(validationData) {
+            // 保存優化後的權重用於預測
+            optimizedWeights = validationData.finalWeights;
+            
             const container = document.getElementById('resultsContainer');
             
             let html = `
@@ -641,6 +652,189 @@
                     </ul>
                     <p style="color: #999; font-size: 12px; margin-top: 15px; font-style: italic;">
                         💡 提示：綠色標記的預測號碼表示成功命中，紫色表示未命中。
+                    </p>
+                </div>
+            `;
+            
+            container.innerHTML = html;
+        }
+
+        async function showLatestPrediction() {
+            const predictButton = document.getElementById('predictButton');
+            const error = document.getElementById('error');
+            const resultsContainer = document.getElementById('resultsContainer');
+            const loading = document.getElementById('loading');
+            
+            if (currentResults.length === 0) {
+                error.textContent = '錯誤: 請先取得攪珠結果';
+                error.style.display = 'block';
+                return;
+            }
+            
+            // 重置狀態
+            predictButton.disabled = true;
+            error.style.display = 'none';
+            loading.style.display = 'block';
+            loading.textContent = '正在分析並預測下一期號碼...';
+            
+            try {
+                // 使用所有歷史數據進行預測
+                const response = await fetch('/api/lottery/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        results: currentResults,
+                        weights: optimizedWeights // 如果進行了迭代驗證，使用優化後的權重
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayLatestPrediction(data.data, currentResults[0]);
+                } else {
+                    throw new Error(data.message || '預測失敗');
+                }
+            } catch (err) {
+                error.textContent = '錯誤: ' + err.message;
+                error.style.display = 'block';
+            } finally {
+                predictButton.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        function displayLatestPrediction(analysisData, latestResult) {
+            const container = document.getElementById('resultsContainer');
+            
+            // 獲取最新期數
+            const latestPeriod = latestResult.periodNumber;
+            
+            // 解析期數以計算下一期
+            const parsePeriod = (periodStr) => {
+                const match1 = periodStr.match(/^(\d{2})\/(\d+)$/);
+                if (match1) {
+                    return { year: parseInt(match1[1], 10), period: parseInt(match1[2], 10) };
+                }
+                const match2 = periodStr.match(/^(\d{4})(\d{3})$/);
+                if (match2) {
+                    return { year: parseInt(match2[1], 10), period: parseInt(match2[2], 10) };
+                }
+                return null;
+            };
+            
+            const currentPeriod = parsePeriod(latestPeriod);
+            let nextPeriodStr = '下一期';
+            if (currentPeriod) {
+                const nextPeriod = currentPeriod.period + 1;
+                if (latestPeriod.includes('/')) {
+                    nextPeriodStr = `${currentPeriod.year}/${nextPeriod}`;
+                } else {
+                    nextPeriodStr = `${currentPeriod.year}${String(nextPeriod).padStart(3, '0')}`;
+                }
+            }
+            
+            let html = `
+                <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 30px; border-radius: 15px; margin-bottom: 30px; color: white; text-align: center; box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);">
+                    <h2 style="margin: 0 0 10px 0; font-size: 2.5em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">🎯 最新預測</h2>
+                    <p style="margin: 0; font-size: 1.3em; opacity: 0.95;">基於 ${analysisData.stats.totalPeriods} 期歷史數據分析</p>
+                    <p style="margin: 15px 0 0 0; font-size: 1.2em; opacity: 0.9;">預測期數: <strong style="font-size: 1.3em;">${nextPeriodStr}</strong></p>
+                </div>
+                
+                <div style="margin-top: 30px;">
+                    <h3 style="color: #333; margin-bottom: 25px; font-size: 1.8em; text-align: center;">
+                        📊 預測最有可能出現的 15 個號碼
+                    </h3>
+                    <div style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-bottom: 30px;">
+            `;
+            
+            // 顯示前 15 名號碼（根據最新分析結果）
+            analysisData.topNumbers.forEach((item, index) => {
+                const rank = index + 1;
+                const size = rank <= 3 ? '35px' : rank <= 5 ? '28px' : '22px';
+                const bgColor = rank === 1 ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' :
+                                rank === 2 ? 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' :
+                                rank === 3 ? 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' :
+                                rank <= 5 ? 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' :
+                                'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                
+                const borderStyle = rank <= 3 ? '3px solid #fff' : '2px solid #fff';
+                const shadowStyle = rank <= 3 ? '0 6px 25px rgba(0, 0, 0, 0.3)' : '0 4px 15px rgba(0, 0, 0, 0.2)';
+                
+                html += `
+                    <div style="
+                        background: ${bgColor};
+                        color: white;
+                        padding: 25px;
+                        border-radius: 15px;
+                        text-align: center;
+                        min-width: 140px;
+                        box-shadow: ${shadowStyle};
+                        border: ${borderStyle};
+                        transition: transform 0.3s ease;
+                        position: relative;
+                    " onmouseover="this.style.transform='scale(1.1)'; this.style.zIndex='10';" 
+                       onmouseout="this.style.transform='scale(1)'; this.style.zIndex='1';">
+                        ${rank <= 3 ? `<div style="position: absolute; top: -10px; right: -10px; background: #ffd700; color: #333; width: 35px; height: 35px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">${rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉'}</div>` : ''}
+                        <div style="font-size: 11px; opacity: 0.9; margin-bottom: 8px; font-weight: 600;">排名 #${rank}</div>
+                        <div style="font-size: ${size}; font-weight: bold; margin: 15px 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">${String(item.number).padStart(2, '0')}</div>
+                        <div style="font-size: 12px; opacity: 0.85; margin-top: 5px;">分數: ${item.score}</div>
+                    </div>
+                `;
+            });
+            
+            html += `
+                    </div>
+                </div>
+                
+                <div style="margin-top: 30px; background: #f8f9fa; padding: 25px; border-radius: 10px;">
+                    <h3 style="color: #333; margin-bottom: 15px;">📈 詳細分析</h3>
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                <th>排名</th>
+                                <th>號碼</th>
+                                <th>綜合分數</th>
+                                <th>總出現次數</th>
+                                <th>加權頻率</th>
+                                <th>間隔分數</th>
+                                <th>模式分數</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            
+            analysisData.topNumbers.forEach((item, index) => {
+                html += `
+                    <tr>
+                        <td><strong>#${index + 1}</strong></td>
+                        <td><span class="number-badge" style="font-size: 18px; font-weight: bold;">${String(item.number).padStart(2, '0')}</span></td>
+                        <td><strong>${item.score}</strong></td>
+                        <td>${item.frequency}</td>
+                        <td>${item.weightedFrequency}</td>
+                        <td>${item.gapScore}</td>
+                        <td>${item.patternScore}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div style="margin-top: 30px; background: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;">
+                    <h3 style="color: #333; margin-bottom: 15px;">💡 預測說明</h3>
+                    <ul style="color: #666; line-height: 1.8; margin-left: 20px;">
+                        <li>此預測基於 <strong>${analysisData.stats.totalPeriods}</strong> 期歷史數據進行分析</li>
+                        <li>使用多種統計方法綜合評估：頻率分析、加權頻率、間隔分析、模式分析</li>
+                        <li>號碼按綜合分數排序，分數越高表示出現機率越大</li>
+                        ${optimizedWeights ? '<li style="color: #28a745;"><strong>✓ 已使用迭代驗證優化後的權重參數</strong></li>' : '<li>建議先進行「迭代驗證」以優化預測參數</li>'}
+                    </ul>
+                    <p style="color: #999; font-size: 12px; margin-top: 15px; font-style: italic;">
+                        ⚠️ 注意：此預測僅供參考，彩票結果具有隨機性，無法保證預測準確性。
                     </p>
                 </div>
             `;

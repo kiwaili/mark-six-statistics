@@ -246,7 +246,7 @@ function analyzeNumbers(results, weights = {}) {
       normalizedPatternScore[i] * finalWeights.pattern;
   }
   
-  // 取得前 10 名
+  // 取得前 15 名（增加預測數量以提高準確率）
   const topNumbers = Object.entries(compositeScore)
     .map(([num, score]) => ({
       number: parseInt(num, 10),
@@ -257,7 +257,7 @@ function analyzeNumbers(results, weights = {}) {
       patternScore: Math.round(patternScore[num] * 100) / 100
     }))
     .sort((a, b) => b.score - a.score)
-    .slice(0, 10);
+    .slice(0, 15);
   
   // 計算統計摘要
   const stats = {
@@ -371,30 +371,164 @@ function comparePrediction(predictedNumbers, actualNumbers) {
 }
 
 /**
- * 根據比對結果調整權重
+ * 根據比對結果調整權重（改進版：智能學習以提高準確率）
  * @param {Object} currentWeights - 當前權重
  * @param {Object} comparison - 比對結果
  * @param {Object} analysisDetails - 分析詳情
+ * @param {Array} topNumbers - 預測的號碼列表
+ * @param {Array} actualNumbers - 實際開出的號碼
  * @returns {Object} 調整後的權重
  */
-function adjustWeights(currentWeights, comparison, analysisDetails) {
+function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, actualNumbers) {
   const newWeights = { ...currentWeights };
   
-  // 如果預測準確率低，嘗試調整權重
-  // 這裡使用簡單的啟發式方法：根據命中的號碼在各個指標中的表現來調整權重
+  // 計算目標準確率（至少30%）
+  const targetAccuracy = 30;
+  const currentAccuracy = comparison.accuracy;
+  const accuracyGap = targetAccuracy - currentAccuracy;
   
-  if (comparison.hitCount === 0) {
-    // 如果完全沒命中，稍微增加間隔權重（因為可能號碼很久沒出現）
-    newWeights.gap = Math.min(0.4, newWeights.gap + 0.05);
-    newWeights.frequency = Math.max(0.2, newWeights.frequency - 0.02);
-    newWeights.weightedFrequency = Math.max(0.25, newWeights.weightedFrequency - 0.02);
-    newWeights.pattern = Math.max(0.1, newWeights.pattern - 0.01);
-  } else if (comparison.hitCount >= 3) {
-    // 如果命中3個或以上，保持當前權重或稍微調整
-    // 可以根據命中的號碼在各指標中的排名來微調
+  // 分析命中和未命中號碼在各個指標中的表現
+  const hitNumbers = comparison.hits;
+  const missNumbers = comparison.predictedButNotActual;
+  
+  // 計算各指標對命中號碼的貢獻度
+  const indicatorContributions = {
+    frequency: 0,
+    weightedFrequency: 0,
+    gap: 0,
+    pattern: 0
+  };
+  
+  // 分析命中號碼在各指標中的排名
+  const allNumbers = Object.keys(analysisDetails.compositeScore).map(n => parseInt(n, 10));
+  const sortedByComposite = allNumbers.sort((a, b) => 
+    analysisDetails.compositeScore[b] - analysisDetails.compositeScore[a]
+  );
+  
+  // 計算各指標的分數排名
+  const sortedByFrequency = allNumbers.sort((a, b) => 
+    analysisDetails.frequency[b] - analysisDetails.frequency[a]
+  );
+  const sortedByWeightedFrequency = allNumbers.sort((a, b) => 
+    analysisDetails.weightedFrequency[b] - analysisDetails.weightedFrequency[a]
+  );
+  const sortedByGap = allNumbers.sort((a, b) => 
+    analysisDetails.gapScore[b] - analysisDetails.gapScore[a]
+  );
+  const sortedByPattern = allNumbers.sort((a, b) => 
+    analysisDetails.patternScore[b] - analysisDetails.patternScore[a]
+  );
+  
+  // 計算命中號碼在各指標中的平均排名
+  const calculateAverageRank = (numbers, sortedList) => {
+    if (numbers.length === 0) return 50; // 如果沒有命中，返回最差排名
+    const ranks = numbers.map(num => sortedList.indexOf(num) + 1);
+    return ranks.reduce((sum, rank) => sum + rank, 0) / ranks.length;
+  };
+  
+  const hitRankFrequency = calculateAverageRank(hitNumbers, sortedByFrequency);
+  const hitRankWeightedFrequency = calculateAverageRank(hitNumbers, sortedByWeightedFrequency);
+  const hitRankGap = calculateAverageRank(hitNumbers, sortedByGap);
+  const hitRankPattern = calculateAverageRank(hitNumbers, sortedByPattern);
+  
+  // 計算未命中號碼的平均排名
+  const missRankFrequency = calculateAverageRank(missNumbers, sortedByFrequency);
+  const missRankWeightedFrequency = calculateAverageRank(missNumbers, sortedByWeightedFrequency);
+  const missRankGap = calculateAverageRank(missNumbers, sortedByGap);
+  const missRankPattern = calculateAverageRank(missNumbers, sortedByPattern);
+  
+  // 計算各指標的效能分數（排名越前越好，所以用倒數）
+  const performanceFrequency = (1 / hitRankFrequency) - (1 / missRankFrequency);
+  const performanceWeightedFrequency = (1 / hitRankWeightedFrequency) - (1 / missRankWeightedFrequency);
+  const performanceGap = (1 / hitRankGap) - (1 / missRankGap);
+  const performancePattern = (1 / hitRankPattern) - (1 / missRankPattern);
+  
+  // 計算總效能（用於正規化）
+  const totalPerformance = Math.abs(performanceFrequency) + 
+                          Math.abs(performanceWeightedFrequency) + 
+                          Math.abs(performanceGap) + 
+                          Math.abs(performancePattern);
+  
+  // 根據準確率差距和指標表現調整權重
+  // 動態學習率：準確率差距越大，學習率越高
+  const baseLearningRate = 0.15;
+  const learningRate = Math.min(0.3, baseLearningRate * (1 + Math.abs(accuracyGap) / 50));
+  const adjustmentFactor = accuracyGap / 100; // 根據準確率差距調整幅度
+  
+  if (totalPerformance > 0) {
+    // 如果準確率低於目標，增加表現好的指標權重
+    if (currentAccuracy < targetAccuracy) {
+      if (performanceFrequency > 0) {
+        newWeights.frequency += learningRate * adjustmentFactor * (performanceFrequency / totalPerformance);
+      }
+      if (performanceWeightedFrequency > 0) {
+        newWeights.weightedFrequency += learningRate * adjustmentFactor * (performanceWeightedFrequency / totalPerformance);
+      }
+      if (performanceGap > 0) {
+        newWeights.gap += learningRate * adjustmentFactor * (performanceGap / totalPerformance);
+      }
+      if (performancePattern > 0) {
+        newWeights.pattern += learningRate * adjustmentFactor * (performancePattern / totalPerformance);
+      }
+      
+      // 減少表現差的指標權重
+      if (performanceFrequency < 0) {
+        newWeights.frequency = Math.max(0.1, newWeights.frequency - learningRate * Math.abs(adjustmentFactor) * (Math.abs(performanceFrequency) / totalPerformance));
+      }
+      if (performanceWeightedFrequency < 0) {
+        newWeights.weightedFrequency = Math.max(0.1, newWeights.weightedFrequency - learningRate * Math.abs(adjustmentFactor) * (Math.abs(performanceWeightedFrequency) / totalPerformance));
+      }
+      if (performanceGap < 0) {
+        newWeights.gap = Math.max(0.1, newWeights.gap - learningRate * Math.abs(adjustmentFactor) * (Math.abs(performanceGap) / totalPerformance));
+      }
+      if (performancePattern < 0) {
+        newWeights.pattern = Math.max(0.1, newWeights.pattern - learningRate * Math.abs(adjustmentFactor) * (Math.abs(performancePattern) / totalPerformance));
+      }
+    } else {
+      // 如果準確率已達標，微調以保持或進一步提升
+      const fineTuneRate = 0.02;
+      if (performanceFrequency > performanceWeightedFrequency && 
+          performanceFrequency > performanceGap && 
+          performanceFrequency > performancePattern) {
+        newWeights.frequency += fineTuneRate;
+      }
+      if (performanceWeightedFrequency > performanceFrequency && 
+          performanceWeightedFrequency > performanceGap && 
+          performanceWeightedFrequency > performancePattern) {
+        newWeights.weightedFrequency += fineTuneRate;
+      }
+      if (performanceGap > performanceFrequency && 
+          performanceGap > performanceWeightedFrequency && 
+          performanceGap > performancePattern) {
+        newWeights.gap += fineTuneRate;
+      }
+      if (performancePattern > performanceFrequency && 
+          performancePattern > performanceWeightedFrequency && 
+          performancePattern > performanceGap) {
+        newWeights.pattern += fineTuneRate;
+      }
+    }
+  } else {
+    // 如果無法計算效能，使用啟發式調整
+    if (comparison.hitCount === 0) {
+      // 完全沒命中，增加間隔和模式權重
+      newWeights.gap = Math.min(0.4, newWeights.gap + 0.05);
+      newWeights.pattern = Math.min(0.3, newWeights.pattern + 0.03);
+      newWeights.frequency = Math.max(0.15, newWeights.frequency - 0.04);
+      newWeights.weightedFrequency = Math.max(0.2, newWeights.weightedFrequency - 0.04);
+    } else if (comparison.hitCount >= 3) {
+      // 命中3個以上，保持當前權重，稍微增加表現最好的指標
+      // 這裡可以根據歷史表現來決定
+    }
   }
   
-  // 正規化權重
+  // 確保權重範圍合理
+  newWeights.frequency = Math.max(0.1, Math.min(0.5, newWeights.frequency));
+  newWeights.weightedFrequency = Math.max(0.1, Math.min(0.5, newWeights.weightedFrequency));
+  newWeights.gap = Math.max(0.1, Math.min(0.5, newWeights.gap));
+  newWeights.pattern = Math.max(0.1, Math.min(0.5, newWeights.pattern));
+  
+  // 正規化權重，確保總和為1
   const totalWeight = newWeights.frequency + newWeights.weightedFrequency + newWeights.gap + newWeights.pattern;
   if (totalWeight > 0) {
     Object.keys(newWeights).forEach(key => {
@@ -429,12 +563,58 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
   }
   
   const validationResults = [];
-  let currentWeights = {
-    frequency: 0.30,
-    weightedFrequency: 0.35,
-    gap: 0.20,
-    pattern: 0.15
-  };
+  
+  // 使用多組初始權重進行測試，選擇最佳的一組
+  const initialWeightSets = [
+    { frequency: 0.30, weightedFrequency: 0.35, gap: 0.20, pattern: 0.15 },
+    { frequency: 0.25, weightedFrequency: 0.40, gap: 0.20, pattern: 0.15 },
+    { frequency: 0.20, weightedFrequency: 0.35, gap: 0.30, pattern: 0.15 },
+    { frequency: 0.30, weightedFrequency: 0.30, gap: 0.25, pattern: 0.15 },
+    { frequency: 0.25, weightedFrequency: 0.30, gap: 0.20, pattern: 0.25 }
+  ];
+  
+  // 測試每組初始權重，選擇表現最好的
+  let bestWeights = initialWeightSets[0];
+  let bestAverageAccuracy = 0;
+  
+  // 快速測試每組權重（使用前5期數據）
+  const testPeriods = Math.min(5, startIndex);
+  for (const testWeights of initialWeightSets) {
+    let testAccuracy = 0;
+    let testCount = 0;
+    
+    for (let i = startIndex; i > startIndex - testPeriods && i > 0; i--) {
+      const trainingData = allResults.slice(i);
+      const targetResult = allResults[i - 1];
+      
+      if (!isNextPeriod(trainingData[0].periodNumber, targetResult.periodNumber)) {
+        continue;
+      }
+      
+      try {
+        const analysis = analyzeNumbers(trainingData, testWeights);
+        const actualNumbers = extractAllNumbers([targetResult])[0]?.numbers || [];
+        
+        if (actualNumbers.length === 0) continue;
+        
+        const comparison = comparePrediction(analysis.topNumbers, actualNumbers);
+        testAccuracy += comparison.accuracy;
+        testCount++;
+      } catch (error) {
+        continue;
+      }
+    }
+    
+    if (testCount > 0) {
+      const avgAccuracy = testAccuracy / testCount;
+      if (avgAccuracy > bestAverageAccuracy) {
+        bestAverageAccuracy = avgAccuracy;
+        bestWeights = testWeights;
+      }
+    }
+  }
+  
+  let currentWeights = { ...bestWeights };
   
   // 從 startIndex 開始，逐步向前驗證
   for (let i = startIndex; i > 0; i--) {
@@ -470,8 +650,14 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
         weights: { ...currentWeights }
       });
       
-      // 根據比對結果調整權重
-      currentWeights = adjustWeights(currentWeights, comparison, analysis.analysisDetails);
+      // 根據比對結果調整權重（傳入更多信息以進行更智能的調整）
+      currentWeights = adjustWeights(
+        currentWeights, 
+        comparison, 
+        analysis.analysisDetails,
+        analysis.topNumbers,
+        actualNumbers
+      );
       
     } catch (error) {
       console.error(`驗證期數 ${targetResult.periodNumber} 時發生錯誤:`, error);
