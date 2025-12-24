@@ -270,9 +270,29 @@ function analyzeNumbers(results, weights = {}) {
       .map(([num, count]) => ({ number: parseInt(num, 10), count }))
   };
   
+  // 生成複式投注建議（完整版）
+  let compoundBetSuggestion = null;
+  try {
+    compoundBetSuggestion = generateCompoundBetSuggestion(topNumbers);
+  } catch (error) {
+    console.warn('生成複式投注建議失敗:', error.message);
+    // 如果生成失敗，不影響主要分析結果
+  }
+  
+  // 生成 $100 複式投注建議
+  let compoundBetSuggestion100 = null;
+  try {
+    compoundBetSuggestion100 = generateCompoundBetSuggestion100(topNumbers);
+  } catch (error) {
+    console.warn('生成 $100 複式投注建議失敗:', error.message);
+    // 如果生成失敗，不影響主要分析結果
+  }
+  
   return {
     topNumbers,
     stats,
+    compoundBetSuggestion, // 完整複式投注建議
+    compoundBetSuggestion100, // $100 複式投注建議
     analysisDetails: {
       frequency,
       weightedFrequency,
@@ -705,12 +725,279 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
   };
 }
 
+/**
+ * 生成組合（從 n 個元素中選擇 k 個）
+ * @param {Array} arr - 元素陣列
+ * @param {number} k - 選擇數量
+ * @returns {Array} 所有組合的陣列
+ */
+function generateCombinations(arr, k) {
+  if (k === 0) return [[]];
+  if (k > arr.length) return [];
+  
+  const combinations = [];
+  
+  function backtrack(start, current) {
+    if (current.length === k) {
+      combinations.push([...current]);
+      return;
+    }
+    
+    for (let i = start; i < arr.length; i++) {
+      current.push(arr[i]);
+      backtrack(i + 1, current);
+      current.pop();
+    }
+  }
+  
+  backtrack(0, []);
+  return combinations;
+}
+
+/**
+ * 生成 $100 複式投注建議（10注）
+ * 使用精選組合策略，以10注覆蓋15個號碼
+ * @param {Array} numbers - 15個預測號碼（已按分數排序）
+ * @returns {Object} 複式投注建議
+ */
+function generateCompoundBetSuggestion100(numbers) {
+  if (!numbers || numbers.length < 15) {
+    throw new Error('需要至少15個號碼');
+  }
+  
+  // 提取號碼值（確保是數字）
+  const numberArray = numbers.slice(0, 15).map(item => 
+    typeof item === 'object' ? item.number : parseInt(item, 10)
+  ).filter(n => !isNaN(n) && n >= 1 && n <= 49);
+  
+  if (numberArray.length < 15) {
+    throw new Error('號碼數量不足15個');
+  }
+  
+  // 策略：使用精選組合，確保10注覆蓋所有15個號碼
+  const coreNumbers = numberArray.slice(0, 8); // 前8個最有可能的號碼
+  const outerNumbers = numberArray.slice(8, 15); // 後7個號碼
+  
+  const bets = [];
+  
+  // 策略1：核心組選6個（選2注，確保核心號碼的高覆蓋率）
+  const core6Combinations = generateCombinations(coreNumbers, 6);
+  bets.push(...core6Combinations.slice(0, 2));
+  
+  // 策略2：核心組選5個 + 外圍組選1個（選4注，確保外圍號碼被包含）
+  const core5Combinations = generateCombinations(coreNumbers, 5);
+  const selectedCore5 = core5Combinations.slice(0, 4); // 選前4個核心5組合
+  
+  selectedCore5.forEach((core5, idx) => {
+    // 每個核心5組合配對不同的外圍號碼，確保外圍號碼均勻分布
+    const outerIndex = idx % outerNumbers.length;
+    bets.push([...core5, outerNumbers[outerIndex]].sort((a, b) => a - b));
+  });
+  
+  // 策略3：核心組選4個 + 外圍組選2個（選2注）
+  const core4Combinations = generateCombinations(coreNumbers, 4);
+  const selectedCore4 = core4Combinations.slice(0, 2); // 選前2個核心4組合
+  const outer2Combinations = generateCombinations(outerNumbers, 2);
+  
+  // 選擇不同的外圍2組合，確保覆蓋更多外圍號碼
+  const selectedOuter2 = outer2Combinations.slice(0, 2);
+  selectedCore4.forEach((core4, idx) => {
+    if (idx < selectedOuter2.length && bets.length < 10) {
+      bets.push([...core4, ...selectedOuter2[idx]].sort((a, b) => a - b));
+    }
+  });
+  
+  // 策略4：核心組選3個 + 外圍組選3個（補充組合以達到10注）
+  if (bets.length < 10) {
+    const core3Combinations = generateCombinations(coreNumbers, 3);
+    const outer3Combinations = generateCombinations(outerNumbers, 3);
+    
+    // 選擇一些組合來補充到10注
+    const needed = 10 - bets.length;
+    let added = 0;
+    for (let i = 0; i < Math.min(needed, core3Combinations.length) && bets.length < 10; i++) {
+      for (let j = 0; j < Math.min(1, outer3Combinations.length) && bets.length < 10; j++) {
+        bets.push([...core3Combinations[i], ...outer3Combinations[j]].sort((a, b) => a - b));
+        added++;
+        if (added >= needed) break;
+      }
+      if (added >= needed) break;
+    }
+  }
+  
+  // 去重
+  const uniqueBets = [];
+  const betStrings = new Set();
+  
+  bets.forEach(bet => {
+    const betStr = bet.sort((a, b) => a - b).join(',');
+    if (!betStrings.has(betStr)) {
+      betStrings.add(betStr);
+      uniqueBets.push(bet.sort((a, b) => a - b));
+    }
+  });
+  
+  // 如果不足10注，補充一些組合
+  if (uniqueBets.length < 10) {
+    // 使用核心組選2個 + 外圍組選4個來補充
+    const core2Combinations = generateCombinations(coreNumbers, 2);
+    const outer4Combinations = generateCombinations(outerNumbers, 4);
+    
+    for (let i = 0; i < core2Combinations.length && uniqueBets.length < 10; i++) {
+      for (let j = 0; j < outer4Combinations.length && uniqueBets.length < 10; j++) {
+        const newBet = [...core2Combinations[i], ...outer4Combinations[j]].sort((a, b) => a - b);
+        const betStr = newBet.join(',');
+        if (!betStrings.has(betStr)) {
+          betStrings.add(betStr);
+          uniqueBets.push(newBet);
+        }
+      }
+    }
+  }
+  
+  // 如果仍然不足10注，使用核心組的更多組合
+  if (uniqueBets.length < 10) {
+    const core6All = generateCombinations(coreNumbers, 6);
+    for (let i = uniqueBets.length; i < 10 && i < core6All.length; i++) {
+      const betStr = core6All[i].sort((a, b) => a - b).join(',');
+      if (!betStrings.has(betStr)) {
+        betStrings.add(betStr);
+        uniqueBets.push(core6All[i].sort((a, b) => a - b));
+      }
+    }
+  }
+  
+  // 限制為恰好10注
+  const finalBets = uniqueBets.slice(0, 10);
+  
+  // 計算總注數和總金額（每注$10）
+  const totalBets = finalBets.length;
+  const totalAmount = totalBets * 10;
+  
+  return {
+    numbers: numberArray,
+    bets: finalBets,
+    totalBets: totalBets,
+    totalAmount: totalAmount,
+    strategy: '$100 精選組合',
+    description: `使用精選組合策略，以 ${totalBets} 注（$100）覆蓋所有15個預測號碼，適合預算有限的投注者`
+  };
+}
+
+/**
+ * 生成縮減輪轉複式投注建議
+ * 使用縮減輪轉系統，以最少注數覆蓋所有15個號碼
+ * @param {Array} numbers - 15個預測號碼（已按分數排序）
+ * @returns {Object} 複式投注建議
+ */
+function generateCompoundBetSuggestion(numbers) {
+  if (!numbers || numbers.length < 15) {
+    throw new Error('需要至少15個號碼');
+  }
+  
+  // 提取號碼值（確保是數字）
+  const numberArray = numbers.slice(0, 15).map(item => 
+    typeof item === 'object' ? item.number : parseInt(item, 10)
+  ).filter(n => !isNaN(n) && n >= 1 && n <= 49);
+  
+  if (numberArray.length < 15) {
+    throw new Error('號碼數量不足15個');
+  }
+  
+  // 策略：使用優化的縮減輪轉系統
+  // 將15個號碼分成：核心組（前7個）+ 外圍組（後8個）
+  // 使用更智能的組合策略以減少注數
+  
+  const coreNumbers = numberArray.slice(0, 7); // 前7個最有可能的號碼
+  const outerNumbers = numberArray.slice(7, 15); // 後8個號碼
+  
+  const bets = [];
+  
+  // 策略1：核心組的完整組合（C(7,6) = 7注）
+  // 這確保如果核心組中有6個中獎，至少有一注會中獎
+  const coreCombinations = generateCombinations(coreNumbers, 6);
+  bets.push(...coreCombinations);
+  
+  // 策略2：核心組選5個 + 外圍組選1個（優化版）
+  // 只選擇核心組的前10個5組合，然後與外圍組組合
+  const core5Combinations = generateCombinations(coreNumbers, 5);
+  const selectedCore5 = core5Combinations.slice(0, Math.min(10, core5Combinations.length));
+  
+  selectedCore5.forEach(core5 => {
+    outerNumbers.forEach(outerNum => {
+      bets.push([...core5, outerNum].sort((a, b) => a - b));
+    });
+  });
+  
+  // 策略3：核心組選4個 + 外圍組選2個（優化版）
+  // 只選擇核心組的前8個4組合
+  const core4Combinations = generateCombinations(coreNumbers, 4);
+  const selectedCore4 = core4Combinations.slice(0, Math.min(8, core4Combinations.length));
+  const outer2Combinations = generateCombinations(outerNumbers, 2);
+  
+  selectedCore4.forEach(core4 => {
+    outer2Combinations.forEach(outer2 => {
+      bets.push([...core4, ...outer2].sort((a, b) => a - b));
+    });
+  });
+  
+  // 策略4：核心組選3個 + 外圍組選3個（優化版）
+  // 只選擇核心組的前5個3組合
+  const core3Combinations = generateCombinations(coreNumbers, 3);
+  const selectedCore3 = core3Combinations.slice(0, Math.min(5, core3Combinations.length));
+  const outer3Combinations = generateCombinations(outerNumbers, 3);
+  
+  selectedCore3.forEach(core3 => {
+    outer3Combinations.forEach(outer3 => {
+      bets.push([...core3, ...outer3].sort((a, b) => a - b));
+    });
+  });
+  
+  // 策略5：核心組選2個 + 外圍組選4個（少量組合）
+  const core2Combinations = generateCombinations(coreNumbers, 2);
+  const selectedCore2 = core2Combinations.slice(0, Math.min(3, core2Combinations.length));
+  const outer4Combinations = generateCombinations(outerNumbers, 4);
+  
+  selectedCore2.forEach(core2 => {
+    outer4Combinations.forEach(outer4 => {
+      bets.push([...core2, ...outer4].sort((a, b) => a - b));
+    });
+  });
+  
+  // 去重（可能會有重複的組合）
+  const uniqueBets = [];
+  const betStrings = new Set();
+  
+  bets.forEach(bet => {
+    const betStr = bet.sort((a, b) => a - b).join(',');
+    if (!betStrings.has(betStr)) {
+      betStrings.add(betStr);
+      uniqueBets.push(bet.sort((a, b) => a - b));
+    }
+  });
+  
+  // 計算總注數和總金額（每注$10）
+  const totalBets = uniqueBets.length;
+  const totalAmount = totalBets * 10;
+  
+  return {
+    numbers: numberArray,
+    bets: uniqueBets,
+    totalBets: totalBets,
+    totalAmount: totalAmount,
+    strategy: '縮減輪轉系統',
+    description: `使用核心組（前7個號碼）+ 外圍組（後8個號碼）的縮減輪轉系統，以 ${totalBets} 注覆蓋所有15個預測號碼，相比完整複式投注（5005注）大幅減少注數`
+  };
+}
+
 module.exports = {
   analyzeNumbers,
   parsePeriodNumber,
   isNextPeriod,
   comparePrediction,
   adjustWeights,
-  iterativeValidation
+  iterativeValidation,
+  generateCompoundBetSuggestion,
+  generateCompoundBetSuggestion100
 };
 

@@ -1010,7 +1010,176 @@
                         </table>
                     </div>
                 </div>
+            `;
+            
+            // 添加複式投注建議
+            if (analysisData.compoundBetSuggestion) {
+                const suggestion = analysisData.compoundBetSuggestion;
+                html += `
+                <div style="margin-top: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; border-radius: 15px; box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);">
+                    <h3 style="color: white; margin-bottom: 20px; font-size: 1.8em; text-align: center; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
+                        🎲 複式投注建議
+                    </h3>
+                    <div style="background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                        <p style="color: #333; font-size: 16px; margin-bottom: 15px; line-height: 1.8;">
+                            <strong>策略說明：</strong>${suggestion.description}
+                        </p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin: 15px 0;">
+                            <div style="background: #f8f9fa; padding: 12px 20px; border-radius: 8px; flex: 1; min-width: 150px;">
+                                <div style="font-size: 12px; color: #666; margin-bottom: 5px;">總注數</div>
+                                <div style="font-size: 24px; font-weight: bold; color: #667eea;">${suggestion.totalBets}</div>
+                            </div>
+                            <div style="background: #f8f9fa; padding: 12px 20px; border-radius: 8px; flex: 1; min-width: 150px;">
+                                <div style="font-size: 12px; color: #666; margin-bottom: 5px;">總金額</div>
+                                <div style="font-size: 24px; font-weight: bold; color: #f5576c;">$${suggestion.totalAmount.toLocaleString()}</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 20px;">
+                            <p style="color: #333; font-size: 14px; margin-bottom: 10px; font-weight: 600;">包含的15個號碼：</p>
+                            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                `;
                 
+                suggestion.numbers.forEach((num, index) => {
+                    const isCore = index < 7;
+                    html += `
+                        <span class="number-badge" style="
+                            background: ${isCore ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'};
+                            color: white;
+                            padding: 8px 15px;
+                            border-radius: 20px;
+                            font-weight: 600;
+                            font-size: 16px;
+                        ">${String(num).padStart(2, '0')}${isCore ? ' ⭐' : ''}</span>
+                    `;
+                });
+                
+                html += `
+                            </div>
+                            <p style="color: #999; font-size: 12px; margin-top: 10px; font-style: italic;">
+                                ⭐ 標記為核心號碼（前7個最有可能的號碼）
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div style="background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 10px; max-height: 400px; overflow-y: auto;">
+                        <p style="color: #333; font-size: 16px; margin-bottom: 15px; font-weight: 600;">
+                            投注組合（共 ${suggestion.totalBets} 注）：
+                        </p>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; font-size: 14px;">
+                `;
+                
+                // 顯示所有投注組合（限制顯示前100注，避免頁面過長）
+                const displayBets = suggestion.bets.slice(0, 100);
+                displayBets.forEach((bet, index) => {
+                    html += `
+                        <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; border-left: 3px solid #667eea;">
+                            <div style="color: #666; font-size: 11px; margin-bottom: 5px;">第 ${index + 1} 注</div>
+                            <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                    `;
+                    bet.forEach(num => {
+                        html += `<span class="number-badge" style="font-size: 13px; padding: 4px 8px;">${String(num).padStart(2, '0')}</span>`;
+                    });
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                if (suggestion.bets.length > 100) {
+                    html += `
+                        <div style="grid-column: 1 / -1; text-align: center; padding: 15px; color: #666; font-style: italic;">
+                            還有 ${suggestion.bets.length - 100} 注未顯示...
+                        </div>
+                    `;
+                }
+                
+                html += `
+                        </div>
+                    </div>
+                </div>
+                `;
+            }
+            
+            // 添加 $100 複式投注建議
+            if (analysisData.compoundBetSuggestion100) {
+                const suggestion100 = analysisData.compoundBetSuggestion100;
+                html += `
+                <div style="margin-top: 30px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 25px; border-radius: 15px; box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);">
+                    <h3 style="color: white; margin-bottom: 20px; font-size: 1.8em; text-align: center; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
+                        💰 $100 複式投注建議
+                    </h3>
+                    <div style="background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                        <p style="color: #333; font-size: 16px; margin-bottom: 15px; line-height: 1.8;">
+                            <strong>策略說明：</strong>${suggestion100.description}
+                        </p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin: 15px 0;">
+                            <div style="background: #f8f9fa; padding: 12px 20px; border-radius: 8px; flex: 1; min-width: 150px;">
+                                <div style="font-size: 12px; color: #666; margin-bottom: 5px;">總注數</div>
+                                <div style="font-size: 24px; font-weight: bold; color: #667eea;">${suggestion100.totalBets}</div>
+                            </div>
+                            <div style="background: #f8f9fa; padding: 12px 20px; border-radius: 8px; flex: 1; min-width: 150px;">
+                                <div style="font-size: 12px; color: #666; margin-bottom: 5px;">總金額</div>
+                                <div style="font-size: 24px; font-weight: bold; color: #f5576c;">$${suggestion100.totalAmount.toLocaleString()}</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 20px;">
+                            <p style="color: #333; font-size: 14px; margin-bottom: 10px; font-weight: 600;">包含的15個號碼：</p>
+                            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                `;
+                
+                suggestion100.numbers.forEach((num, index) => {
+                    const isCore = index < 8;
+                    html += `
+                        <span class="number-badge" style="
+                            background: ${isCore ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'};
+                            color: white;
+                            padding: 8px 15px;
+                            border-radius: 20px;
+                            font-weight: 600;
+                            font-size: 16px;
+                        ">${String(num).padStart(2, '0')}${isCore ? ' ⭐' : ''}</span>
+                    `;
+                });
+                
+                html += `
+                            </div>
+                            <p style="color: #999; font-size: 12px; margin-top: 10px; font-style: italic;">
+                                ⭐ 標記為核心號碼（前8個最有可能的號碼）
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div style="background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 10px; max-height: 500px; overflow-y: auto;">
+                        <p style="color: #333; font-size: 16px; margin-bottom: 15px; font-weight: 600;">
+                            投注組合（共 ${suggestion100.totalBets} 注）：
+                        </p>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; font-size: 14px;">
+                `;
+                
+                // 顯示所有投注組合（$100 建議只有10注，全部顯示）
+                suggestion100.bets.forEach((bet, index) => {
+                    html += `
+                        <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; border-left: 3px solid #f5576c;">
+                            <div style="color: #666; font-size: 11px; margin-bottom: 5px;">第 ${index + 1} 注</div>
+                            <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                    `;
+                    bet.forEach(num => {
+                        html += `<span class="number-badge" style="font-size: 13px; padding: 4px 8px;">${String(num).padStart(2, '0')}</span>`;
+                    });
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += `
+                        </div>
+                    </div>
+                </div>
+                `;
+            }
+            
+            html += `
                 <div style="margin-top: 30px; background: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;">
                     <h3 style="color: #333; margin-bottom: 15px;">💡 預測說明</h3>
                     <ul style="color: #666; line-height: 1.8; margin-left: 20px;">
