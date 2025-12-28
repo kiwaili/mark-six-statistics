@@ -169,6 +169,277 @@ function calculatePatternScore(allNumbers) {
 }
 
 /**
+ * 計算統計分布特徵（均值、方差、標準差、偏度、峰度）
+ * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @returns {Object} 統計分布特徵
+ */
+function calculateDistributionFeatures(allNumbers) {
+  // 收集每期所有號碼的值
+  const allNumberValues = [];
+  allNumbers.forEach(period => {
+    period.numbers.forEach(num => {
+      if (num >= 1 && num <= 49) {
+        allNumberValues.push(num);
+      }
+    });
+  });
+  
+  if (allNumberValues.length === 0) {
+    return {
+      mean: 0,
+      variance: 0,
+      stdDev: 0,
+      skewness: 0,
+      kurtosis: 0
+    };
+  }
+  
+  // 計算均值
+  const mean = allNumberValues.reduce((sum, val) => sum + val, 0) / allNumberValues.length;
+  
+  // 計算方差
+  const variance = allNumberValues.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / allNumberValues.length;
+  
+  // 計算標準差
+  const stdDev = Math.sqrt(variance);
+  
+  // 計算偏度（第三階中心矩）
+  const skewness = stdDev > 0 
+    ? allNumberValues.reduce((sum, val) => sum + Math.pow((val - mean) / stdDev, 3), 0) / allNumberValues.length
+    : 0;
+  
+  // 計算峰度（第四階中心矩，減去3以得到超額峰度）
+  const kurtosis = stdDev > 0
+    ? (allNumberValues.reduce((sum, val) => sum + Math.pow((val - mean) / stdDev, 4), 0) / allNumberValues.length) - 3
+    : 0;
+  
+  return {
+    mean: Math.round(mean * 100) / 100,
+    variance: Math.round(variance * 100) / 100,
+    stdDev: Math.round(stdDev * 100) / 100,
+    skewness: Math.round(skewness * 100) / 100,
+    kurtosis: Math.round(kurtosis * 100) / 100
+  };
+}
+
+/**
+ * 計算每個號碼的統計分布分數（基於正態分布假設）
+ * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @returns {Object} 分布分數
+ */
+function calculateDistributionScore(allNumbers) {
+  const distributionScore = {};
+  const features = calculateDistributionFeatures(allNumbers);
+  
+  // 初始化所有可能的號碼 (1-49)
+  for (let i = 1; i <= 49; i++) {
+    distributionScore[i] = 0;
+  }
+  
+  // 如果標準差為0，返回零分數
+  if (features.stdDev === 0) {
+    return distributionScore;
+  }
+  
+  // 計算每個號碼在分布中的位置分數
+  // 使用正態分布的Z分數，但考慮實際頻率
+  const frequency = calculateFrequency(allNumbers);
+  const totalPeriods = allNumbers.length;
+  const expectedFrequency = totalPeriods * 6 / 49; // 每期6個號碼，共49個號碼
+  
+  for (let i = 1; i <= 49; i++) {
+    // 計算Z分數（標準化分數）
+    const zScore = (i - features.mean) / features.stdDev;
+    
+    // 計算實際頻率與期望頻率的偏差
+    const frequencyDeviation = (frequency[i] - expectedFrequency) / (expectedFrequency + 1);
+    
+    // 如果號碼在分布中心附近（Z分數接近0），給予較高分數
+    // 同時考慮頻率偏差（頻率低於期望的號碼可能更有可能出現）
+    const centerScore = Math.exp(-0.5 * Math.pow(zScore, 2)); // 正態分布密度函數
+    const frequencyScore = frequencyDeviation < 0 ? Math.abs(frequencyDeviation) : -frequencyDeviation * 0.5;
+    
+    // 綜合分數
+    distributionScore[i] = centerScore * 50 + frequencyScore * 50;
+  }
+  
+  return distributionScore;
+}
+
+/**
+ * 計算趨勢分析（線性回歸、移動平均）
+ * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @returns {Object} 趨勢分析結果
+ */
+function calculateTrendAnalysis(allNumbers) {
+  const trendScore = {};
+  
+  // 初始化所有可能的號碼 (1-49)
+  for (let i = 1; i <= 49; i++) {
+    trendScore[i] = 0;
+  }
+  
+  if (allNumbers.length < 3) {
+    return trendScore;
+  }
+  
+  // 計算每個號碼的出現趨勢（最近N期的移動平均）
+  const windowSize = Math.min(10, Math.floor(allNumbers.length / 2));
+  
+  for (let num = 1; num <= 49; num++) {
+    // 記錄每期該號碼是否出現（1或0）
+    const appearances = [];
+    for (let i = 0; i < allNumbers.length; i++) {
+      const period = allNumbers[i];
+      appearances.push(period.numbers.includes(num) ? 1 : 0);
+    }
+    
+    // 計算移動平均（最近windowSize期）
+    const recentAppearances = appearances.slice(0, windowSize);
+    const movingAverage = recentAppearances.reduce((sum, val) => sum + val, 0) / windowSize;
+    
+    // 計算線性回歸斜率（趨勢方向）
+    let slope = 0;
+    if (recentAppearances.length >= 2) {
+      const n = recentAppearances.length;
+      let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+      
+      for (let i = 0; i < n; i++) {
+        const x = i;
+        const y = recentAppearances[i];
+        sumX += x;
+        sumY += y;
+        sumXY += x * y;
+        sumX2 += x * x;
+      }
+      
+      const denominator = n * sumX2 - sumX * sumX;
+      if (denominator !== 0) {
+        slope = (n * sumXY - sumX * sumY) / denominator;
+      }
+    }
+    
+    // 如果移動平均低且趨勢向上，給予較高分數（可能即將出現）
+    // 如果移動平均高且趨勢向下，給予較低分數（可能不會出現）
+    let score = 0;
+    if (movingAverage < 0.3 && slope > 0) {
+      // 低頻率但趨勢向上，可能即將出現
+      score = 70 + slope * 30;
+    } else if (movingAverage < 0.2) {
+      // 非常低的頻率，可能該出現了
+      score = 60;
+    } else if (movingAverage > 0.5 && slope < 0) {
+      // 高頻率但趨勢向下，可能不會出現
+      score = 30;
+    } else {
+      // 其他情況，基於移動平均
+      score = 50 + (0.3 - movingAverage) * 50;
+    }
+    
+    trendScore[num] = Math.max(0, Math.min(100, score));
+  }
+  
+  return trendScore;
+}
+
+/**
+ * 計算卡方檢驗分數（檢驗號碼分布是否均勻）
+ * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @returns {Object} 卡方分數
+ */
+function calculateChiSquareScore(allNumbers) {
+  const chiSquareScore = {};
+  
+  // 初始化所有可能的號碼 (1-49)
+  for (let i = 1; i <= 49; i++) {
+    chiSquareScore[i] = 0;
+  }
+  
+  const frequency = calculateFrequency(allNumbers);
+  const totalPeriods = allNumbers.length;
+  const totalNumbers = totalPeriods * 6; // 每期6個號碼
+  const expectedFrequency = totalNumbers / 49; // 期望頻率
+  
+  // 計算卡方統計量
+  let chiSquare = 0;
+  for (let i = 1; i <= 49; i++) {
+    const observed = frequency[i];
+    const expected = expectedFrequency;
+    if (expected > 0) {
+      chiSquare += Math.pow(observed - expected, 2) / expected;
+    }
+  }
+  
+  // 計算每個號碼的偏差分數
+  // 偏差越大（低於期望），分數越高（表示該號碼可能該出現了）
+  for (let i = 1; i <= 49; i++) {
+    const deviation = (expectedFrequency - frequency[i]) / (expectedFrequency + 1);
+    chiSquareScore[i] = Math.max(0, deviation * 100);
+  }
+  
+  return {
+    scores: chiSquareScore,
+    chiSquare: Math.round(chiSquare * 100) / 100,
+    degreesOfFreedom: 48, // 49-1
+    expectedFrequency: Math.round(expectedFrequency * 100) / 100
+  };
+}
+
+/**
+ * 計算泊松分布分數（檢驗號碼出現是否符合泊松分布）
+ * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @returns {Object} 泊松分布分數
+ */
+function calculatePoissonScore(allNumbers) {
+  const poissonScore = {};
+  
+  // 初始化所有可能的號碼 (1-49)
+  for (let i = 1; i <= 49; i++) {
+    poissonScore[i] = 0;
+  }
+  
+  const frequency = calculateFrequency(allNumbers);
+  const totalPeriods = allNumbers.length;
+  const lambda = 6 * totalPeriods / 49; // 泊松參數（每期6個號碼，共49個號碼）
+  
+  // 計算泊松分布概率
+  const factorial = (n) => {
+    if (n <= 1) return 1;
+    let result = 1;
+    for (let i = 2; i <= n; i++) {
+      result *= i;
+    }
+    return result;
+  };
+  
+  // 泊松概率質量函數：P(k) = (λ^k * e^(-λ)) / k!
+  const poissonPMF = (k, lambda) => {
+    if (lambda === 0) return k === 0 ? 1 : 0;
+    return Math.pow(lambda, k) * Math.exp(-lambda) / factorial(k);
+  };
+  
+  // 計算每個號碼的分數
+  for (let i = 1; i <= 49; i++) {
+    const observed = frequency[i];
+    const probability = poissonPMF(observed, lambda);
+    
+    // 如果觀察值低於期望值，給予較高分數（可能該出現了）
+    if (observed < lambda) {
+      const deficit = lambda - observed;
+      poissonScore[i] = Math.min(100, deficit * 20);
+    } else {
+      // 如果觀察值高於期望值，給予較低分數
+      poissonScore[i] = Math.max(0, 50 - (observed - lambda) * 10);
+    }
+  }
+  
+  return {
+    scores: poissonScore,
+    lambda: Math.round(lambda * 100) / 100
+  };
+}
+
+/**
  * 分析並預測最有可能在下一期被抽中的號碼
  * @param {Array} results - 攪珠結果陣列
  * @param {Object} weights - 可選的權重參數 { frequency, weightedFrequency, gap, pattern }
@@ -191,6 +462,13 @@ function analyzeNumbers(results, weights = {}) {
   const weightedFrequency = calculateWeightedFrequency(allNumbers);
   const gapScore = calculateGapAnalysis(allNumbers);
   const patternScore = calculatePatternScore(allNumbers);
+  
+  // 計算統計分布分析
+  const distributionFeatures = calculateDistributionFeatures(allNumbers);
+  const distributionScore = calculateDistributionScore(allNumbers);
+  const trendScore = calculateTrendAnalysis(allNumbers);
+  const chiSquareResult = calculateChiSquareScore(allNumbers);
+  const poissonResult = calculatePoissonScore(allNumbers);
 
   // 正規化各項分數到 0-100 範圍
   const normalize = (scores) => {
@@ -210,26 +488,40 @@ function analyzeNumbers(results, weights = {}) {
   const normalizedWeightedFrequency = normalize(weightedFrequency);
   const normalizedGapScore = normalize(gapScore);
   const normalizedPatternScore = normalize(patternScore);
+  const normalizedDistributionScore = normalize(distributionScore);
+  const normalizedTrendScore = normalize(trendScore);
+  const normalizedChiSquareScore = normalize(chiSquareResult.scores);
+  const normalizedPoissonScore = normalize(poissonResult.scores);
 
   // 計算綜合分數（加權組合）
-  // 預設權重: 頻率: 25%, 加權頻率: 30%, 間隔: 30%, 模式: 15% (優化以提高命中率，目標平均命中數至少3)
+  // 預設權重: 頻率: 15%, 加權頻率: 20%, 間隔: 20%, 模式: 10%, 分布: 15%, 趨勢: 10%, 卡方: 5%, 泊松: 5%
   // 如果提供了自訂權重，則使用自訂權重
   const defaultWeights = {
-    frequency: 0.25,
-    weightedFrequency: 0.30,
-    gap: 0.30,
-    pattern: 0.15
+    frequency: 0.15,
+    weightedFrequency: 0.20,
+    gap: 0.20,
+    pattern: 0.10,
+    distribution: 0.15,
+    trend: 0.10,
+    chiSquare: 0.05,
+    poisson: 0.05
   };
   
   const finalWeights = {
     frequency: weights.frequency !== undefined ? weights.frequency : defaultWeights.frequency,
     weightedFrequency: weights.weightedFrequency !== undefined ? weights.weightedFrequency : defaultWeights.weightedFrequency,
     gap: weights.gap !== undefined ? weights.gap : defaultWeights.gap,
-    pattern: weights.pattern !== undefined ? weights.pattern : defaultWeights.pattern
+    pattern: weights.pattern !== undefined ? weights.pattern : defaultWeights.pattern,
+    distribution: weights.distribution !== undefined ? weights.distribution : defaultWeights.distribution,
+    trend: weights.trend !== undefined ? weights.trend : defaultWeights.trend,
+    chiSquare: weights.chiSquare !== undefined ? weights.chiSquare : defaultWeights.chiSquare,
+    poisson: weights.poisson !== undefined ? weights.poisson : defaultWeights.poisson
   };
   
   // 正規化權重，確保總和為1
-  const totalWeight = finalWeights.frequency + finalWeights.weightedFrequency + finalWeights.gap + finalWeights.pattern;
+  const totalWeight = finalWeights.frequency + finalWeights.weightedFrequency + finalWeights.gap + 
+                      finalWeights.pattern + finalWeights.distribution + finalWeights.trend + 
+                      finalWeights.chiSquare + finalWeights.poisson;
   if (totalWeight > 0) {
     Object.keys(finalWeights).forEach(key => {
       finalWeights[key] = finalWeights[key] / totalWeight;
@@ -243,7 +535,11 @@ function analyzeNumbers(results, weights = {}) {
       normalizedFrequency[i] * finalWeights.frequency +
       normalizedWeightedFrequency[i] * finalWeights.weightedFrequency +
       normalizedGapScore[i] * finalWeights.gap +
-      normalizedPatternScore[i] * finalWeights.pattern;
+      normalizedPatternScore[i] * finalWeights.pattern +
+      normalizedDistributionScore[i] * finalWeights.distribution +
+      normalizedTrendScore[i] * finalWeights.trend +
+      normalizedChiSquareScore[i] * finalWeights.chiSquare +
+      normalizedPoissonScore[i] * finalWeights.poisson;
   }
   
   // 取得前 40 名（增加候選數量以提高命中至少3個的概率，目標平均命中數至少3）
@@ -254,7 +550,11 @@ function analyzeNumbers(results, weights = {}) {
       frequency: frequency[num],
       weightedFrequency: Math.round(weightedFrequency[num] * 100) / 100,
       gapScore: Math.round(gapScore[num] * 100) / 100,
-      patternScore: Math.round(patternScore[num] * 100) / 100
+      patternScore: Math.round(patternScore[num] * 100) / 100,
+      distributionScore: Math.round(distributionScore[num] * 100) / 100,
+      trendScore: Math.round(trendScore[num] * 100) / 100,
+      chiSquareScore: Math.round(chiSquareResult.scores[num] * 100) / 100,
+      poissonScore: Math.round(poissonResult.scores[num] * 100) / 100
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 40); // 增加到40個候選號碼，提供更多選擇以提高命中率
@@ -298,7 +598,21 @@ function analyzeNumbers(results, weights = {}) {
       weightedFrequency,
       gapScore,
       patternScore,
-      compositeScore
+      compositeScore,
+      // 統計分布分析
+      distributionFeatures,
+      distributionScore,
+      trendScore,
+      chiSquare: {
+        scores: chiSquareResult.scores,
+        chiSquare: chiSquareResult.chiSquare,
+        degreesOfFreedom: chiSquareResult.degreesOfFreedom,
+        expectedFrequency: chiSquareResult.expectedFrequency
+      },
+      poisson: {
+        scores: poissonResult.scores,
+        lambda: poissonResult.lambda
+      }
     }
   };
 }
@@ -1058,7 +1372,11 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
     frequency: 0,
     weightedFrequency: 0,
     gap: 0,
-    pattern: 0
+    pattern: 0,
+    distribution: 0,
+    trend: 0,
+    chiSquare: 0,
+    poisson: 0
   };
   
   // 分析命中號碼在各指標中的排名
@@ -1105,11 +1423,57 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   const performanceGap = (1 / hitRankGap) - (1 / missRankGap);
   const performancePattern = (1 / hitRankPattern) - (1 / missRankPattern);
   
+  // 如果有新的統計分布分析指標，也計算它們的效能
+  let performanceDistribution = 0;
+  let performanceTrend = 0;
+  let performanceChiSquare = 0;
+  let performancePoisson = 0;
+  
+  if (analysisDetails.distributionScore) {
+    const sortedByDistribution = allNumbers.sort((a, b) => 
+      analysisDetails.distributionScore[b] - analysisDetails.distributionScore[a]
+    );
+    const hitRankDistribution = calculateAverageRank(hitNumbers, sortedByDistribution);
+    const missRankDistribution = calculateAverageRank(missNumbers, sortedByDistribution);
+    performanceDistribution = (1 / hitRankDistribution) - (1 / missRankDistribution);
+  }
+  
+  if (analysisDetails.trendScore) {
+    const sortedByTrend = allNumbers.sort((a, b) => 
+      analysisDetails.trendScore[b] - analysisDetails.trendScore[a]
+    );
+    const hitRankTrend = calculateAverageRank(hitNumbers, sortedByTrend);
+    const missRankTrend = calculateAverageRank(missNumbers, sortedByTrend);
+    performanceTrend = (1 / hitRankTrend) - (1 / missRankTrend);
+  }
+  
+  if (analysisDetails.chiSquare && analysisDetails.chiSquare.scores) {
+    const sortedByChiSquare = allNumbers.sort((a, b) => 
+      analysisDetails.chiSquare.scores[b] - analysisDetails.chiSquare.scores[a]
+    );
+    const hitRankChiSquare = calculateAverageRank(hitNumbers, sortedByChiSquare);
+    const missRankChiSquare = calculateAverageRank(missNumbers, sortedByChiSquare);
+    performanceChiSquare = (1 / hitRankChiSquare) - (1 / missRankChiSquare);
+  }
+  
+  if (analysisDetails.poisson && analysisDetails.poisson.scores) {
+    const sortedByPoisson = allNumbers.sort((a, b) => 
+      analysisDetails.poisson.scores[b] - analysisDetails.poisson.scores[a]
+    );
+    const hitRankPoisson = calculateAverageRank(hitNumbers, sortedByPoisson);
+    const missRankPoisson = calculateAverageRank(missNumbers, sortedByPoisson);
+    performancePoisson = (1 / hitRankPoisson) - (1 / missRankPoisson);
+  }
+  
   // 計算總效能（用於正規化）
   const totalPerformance = Math.abs(performanceFrequency) + 
                           Math.abs(performanceWeightedFrequency) + 
                           Math.abs(performanceGap) + 
-                          Math.abs(performancePattern);
+                          Math.abs(performancePattern) +
+                          Math.abs(performanceDistribution) +
+                          Math.abs(performanceTrend) +
+                          Math.abs(performanceChiSquare) +
+                          Math.abs(performancePoisson);
   
   // 根據準確率差距和指標表現調整權重
   // 動態學習率：準確率差距越大，學習率越高
@@ -1122,6 +1486,12 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   const learningRate = Math.min(0.6, baseLearningRate * (1 + Math.abs(accuracyGap) / 40) * hitCountMultiplier * priorityFactor); // 提高最大學習率
   // 命中數差距的權重更高（命中數至少3是硬性要求）
   const adjustmentFactor = (accuracyGap / 100) + (hitCountGap > 0 ? hitCountGap * 0.25 : 0); // 更積極的調整幅度，命中數權重更高
+  
+  // 初始化新權重（如果不存在）
+  if (newWeights.distribution === undefined) newWeights.distribution = 0.15;
+  if (newWeights.trend === undefined) newWeights.trend = 0.10;
+  if (newWeights.chiSquare === undefined) newWeights.chiSquare = 0.05;
+  if (newWeights.poisson === undefined) newWeights.poisson = 0.05;
   
   if (totalPerformance > 0) {
     // 優先處理命中數不足的情況（命中數至少3是硬性要求）
@@ -1143,64 +1513,90 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
       if (performancePattern > 0) {
         newWeights.pattern += learningRate * adjustmentFactor * criticalMultiplier * (performancePattern / totalPerformance);
       }
+      if (performanceDistribution > 0 && analysisDetails.distributionScore) {
+        newWeights.distribution += learningRate * adjustmentFactor * criticalMultiplier * (performanceDistribution / totalPerformance);
+      }
+      if (performanceTrend > 0 && analysisDetails.trendScore) {
+        newWeights.trend += learningRate * adjustmentFactor * criticalMultiplier * (performanceTrend / totalPerformance);
+      }
+      if (performanceChiSquare > 0 && analysisDetails.chiSquare) {
+        newWeights.chiSquare += learningRate * adjustmentFactor * criticalMultiplier * (performanceChiSquare / totalPerformance);
+      }
+      if (performancePoisson > 0 && analysisDetails.poisson) {
+        newWeights.poisson += learningRate * adjustmentFactor * criticalMultiplier * (performancePoisson / totalPerformance);
+      }
       
       // 減少表現差的指標權重（命中數不足時更積極）
       const reductionMultiplier = isHitCountCritical ? 1.2 : 1.0;
       if (performanceFrequency < 0) {
-        newWeights.frequency = Math.max(0.1, newWeights.frequency - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performanceFrequency) / totalPerformance));
+        newWeights.frequency = Math.max(0.05, newWeights.frequency - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performanceFrequency) / totalPerformance));
       }
       if (performanceWeightedFrequency < 0) {
-        newWeights.weightedFrequency = Math.max(0.1, newWeights.weightedFrequency - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performanceWeightedFrequency) / totalPerformance));
+        newWeights.weightedFrequency = Math.max(0.05, newWeights.weightedFrequency - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performanceWeightedFrequency) / totalPerformance));
       }
       if (performanceGap < 0) {
-        newWeights.gap = Math.max(0.1, newWeights.gap - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performanceGap) / totalPerformance));
+        newWeights.gap = Math.max(0.05, newWeights.gap - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performanceGap) / totalPerformance));
       }
       if (performancePattern < 0) {
-        newWeights.pattern = Math.max(0.1, newWeights.pattern - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performancePattern) / totalPerformance));
+        newWeights.pattern = Math.max(0.05, newWeights.pattern - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performancePattern) / totalPerformance));
+      }
+      if (performanceDistribution < 0 && analysisDetails.distributionScore) {
+        newWeights.distribution = Math.max(0.05, newWeights.distribution - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performanceDistribution) / totalPerformance));
+      }
+      if (performanceTrend < 0 && analysisDetails.trendScore) {
+        newWeights.trend = Math.max(0.05, newWeights.trend - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performanceTrend) / totalPerformance));
+      }
+      if (performanceChiSquare < 0 && analysisDetails.chiSquare) {
+        newWeights.chiSquare = Math.max(0.05, newWeights.chiSquare - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performanceChiSquare) / totalPerformance));
+      }
+      if (performancePoisson < 0 && analysisDetails.poisson) {
+        newWeights.poisson = Math.max(0.05, newWeights.poisson - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performancePoisson) / totalPerformance));
       }
     } else {
       // 如果準確率已達標，微調以保持或進一步提升
       const fineTuneRate = 0.02;
-      if (performanceFrequency > performanceWeightedFrequency && 
-          performanceFrequency > performanceGap && 
-          performanceFrequency > performancePattern) {
-        newWeights.frequency += fineTuneRate;
-      }
-      if (performanceWeightedFrequency > performanceFrequency && 
-          performanceWeightedFrequency > performanceGap && 
-          performanceWeightedFrequency > performancePattern) {
-        newWeights.weightedFrequency += fineTuneRate;
-      }
-      if (performanceGap > performanceFrequency && 
-          performanceGap > performanceWeightedFrequency && 
-          performanceGap > performancePattern) {
-        newWeights.gap += fineTuneRate;
-      }
-      if (performancePattern > performanceFrequency && 
-          performancePattern > performanceWeightedFrequency && 
-          performancePattern > performanceGap) {
-        newWeights.pattern += fineTuneRate;
+      const performances = [
+        { name: 'frequency', value: performanceFrequency },
+        { name: 'weightedFrequency', value: performanceWeightedFrequency },
+        { name: 'gap', value: performanceGap },
+        { name: 'pattern', value: performancePattern },
+        { name: 'distribution', value: performanceDistribution, available: !!analysisDetails.distributionScore },
+        { name: 'trend', value: performanceTrend, available: !!analysisDetails.trendScore },
+        { name: 'chiSquare', value: performanceChiSquare, available: !!analysisDetails.chiSquare },
+        { name: 'poisson', value: performancePoisson, available: !!analysisDetails.poisson }
+      ].filter(p => p.available !== false);
+      
+      const bestPerformance = performances.reduce((best, current) => 
+        current.value > best.value ? current : best
+      );
+      
+      if (bestPerformance && newWeights[bestPerformance.name] !== undefined) {
+        newWeights[bestPerformance.name] += fineTuneRate;
       }
     }
   } else {
     // 如果無法計算效能，使用啟發式調整
     if (comparison.hitCount === 0) {
-      // 完全沒命中，增加間隔和模式權重
-      newWeights.gap = Math.min(0.4, newWeights.gap + 0.05);
-      newWeights.pattern = Math.min(0.3, newWeights.pattern + 0.03);
-      newWeights.frequency = Math.max(0.15, newWeights.frequency - 0.04);
-      newWeights.weightedFrequency = Math.max(0.2, newWeights.weightedFrequency - 0.04);
+      // 完全沒命中，增加間隔、模式、趨勢和分布權重
+      newWeights.gap = Math.min(0.4, (newWeights.gap || 0.2) + 0.05);
+      newWeights.pattern = Math.min(0.3, (newWeights.pattern || 0.1) + 0.03);
+      newWeights.trend = Math.min(0.2, (newWeights.trend || 0.1) + 0.02);
+      newWeights.distribution = Math.min(0.25, (newWeights.distribution || 0.15) + 0.02);
+      newWeights.frequency = Math.max(0.05, (newWeights.frequency || 0.15) - 0.04);
+      newWeights.weightedFrequency = Math.max(0.05, (newWeights.weightedFrequency || 0.2) - 0.04);
     } else if (comparison.hitCount < targetHitCount) {
       // 命中數少於目標（至少3），積極調整權重
-      // 增加間隔和模式權重（這些指標可能有助於提高命中數）
+      // 增加間隔、模式、趨勢和分布權重（這些指標可能有助於提高命中數）
       // 命中數不足時，調整幅度更大
       const hitCountDeficit = targetHitCount - comparison.hitCount;
       const adjustmentAmount = hitCountDeficit * 0.08; // 進一步提高調整幅度
-      newWeights.gap = Math.min(0.5, newWeights.gap + adjustmentAmount);
-      newWeights.pattern = Math.min(0.4, newWeights.pattern + adjustmentAmount * 1.0);
-      newWeights.weightedFrequency = Math.min(0.55, newWeights.weightedFrequency + adjustmentAmount * 0.7);
+      newWeights.gap = Math.min(0.5, (newWeights.gap || 0.2) + adjustmentAmount);
+      newWeights.pattern = Math.min(0.4, (newWeights.pattern || 0.1) + adjustmentAmount * 1.0);
+      newWeights.trend = Math.min(0.3, (newWeights.trend || 0.1) + adjustmentAmount * 0.8);
+      newWeights.distribution = Math.min(0.3, (newWeights.distribution || 0.15) + adjustmentAmount * 0.6);
+      newWeights.weightedFrequency = Math.min(0.55, (newWeights.weightedFrequency || 0.2) + adjustmentAmount * 0.7);
       // 稍微減少頻率權重
-      newWeights.frequency = Math.max(0.05, newWeights.frequency - adjustmentAmount * 0.5);
+      newWeights.frequency = Math.max(0.05, (newWeights.frequency || 0.15) - adjustmentAmount * 0.5);
     } else if (comparison.hitCount >= targetHitCount) {
       // 命中3個以上，保持當前權重，稍微增加表現最好的指標
       // 這裡可以根據歷史表現來決定
@@ -1208,13 +1604,19 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   }
   
   // 確保權重範圍合理
-  newWeights.frequency = Math.max(0.1, Math.min(0.5, newWeights.frequency));
-  newWeights.weightedFrequency = Math.max(0.1, Math.min(0.5, newWeights.weightedFrequency));
-  newWeights.gap = Math.max(0.1, Math.min(0.5, newWeights.gap));
-  newWeights.pattern = Math.max(0.1, Math.min(0.5, newWeights.pattern));
+  newWeights.frequency = Math.max(0.05, Math.min(0.5, newWeights.frequency || 0.15));
+  newWeights.weightedFrequency = Math.max(0.05, Math.min(0.5, newWeights.weightedFrequency || 0.2));
+  newWeights.gap = Math.max(0.05, Math.min(0.5, newWeights.gap || 0.2));
+  newWeights.pattern = Math.max(0.05, Math.min(0.5, newWeights.pattern || 0.1));
+  newWeights.distribution = Math.max(0.05, Math.min(0.5, newWeights.distribution || 0.15));
+  newWeights.trend = Math.max(0.05, Math.min(0.5, newWeights.trend || 0.1));
+  newWeights.chiSquare = Math.max(0.05, Math.min(0.5, newWeights.chiSquare || 0.05));
+  newWeights.poisson = Math.max(0.05, Math.min(0.5, newWeights.poisson || 0.05));
   
   // 正規化權重，確保總和為1
-  const totalWeight = newWeights.frequency + newWeights.weightedFrequency + newWeights.gap + newWeights.pattern;
+  const totalWeight = (newWeights.frequency || 0) + (newWeights.weightedFrequency || 0) + (newWeights.gap || 0) + 
+                      (newWeights.pattern || 0) + (newWeights.distribution || 0) + (newWeights.trend || 0) + 
+                      (newWeights.chiSquare || 0) + (newWeights.poisson || 0);
   if (totalWeight > 0) {
     Object.keys(newWeights).forEach(key => {
       newWeights[key] = newWeights[key] / totalWeight;
@@ -1250,16 +1652,16 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
   const validationResults = [];
   
   // 使用多組初始權重進行測試，選擇最佳的一組
-  // 針對6個號碼預測優化：增加間隔和模式權重（這些指標對提高命中率更有效）
+  // 針對6個號碼預測優化：增加間隔、模式、趨勢和分布權重（這些指標對提高命中率更有效）
   // 目標：平均每期命中數至少3
   const initialWeightSets = [
-    { frequency: 0.20, weightedFrequency: 0.30, gap: 0.30, pattern: 0.20 }, // 間隔和模式優先（優化命中率）
-    { frequency: 0.18, weightedFrequency: 0.32, gap: 0.30, pattern: 0.20 }, // 高間隔和模式
-    { frequency: 0.22, weightedFrequency: 0.28, gap: 0.32, pattern: 0.18 }, // 高間隔
-    { frequency: 0.25, weightedFrequency: 0.30, gap: 0.30, pattern: 0.15 }, // 間隔優先
-    { frequency: 0.20, weightedFrequency: 0.35, gap: 0.25, pattern: 0.20 }, // 加權頻率和模式
-    { frequency: 0.22, weightedFrequency: 0.33, gap: 0.28, pattern: 0.17 }, // 優化組合
-    { frequency: 0.25, weightedFrequency: 0.35, gap: 0.25, pattern: 0.15 }  // 平衡型
+    { frequency: 0.12, weightedFrequency: 0.18, gap: 0.20, pattern: 0.10, distribution: 0.15, trend: 0.15, chiSquare: 0.05, poisson: 0.05 }, // 趨勢和分布優先
+    { frequency: 0.10, weightedFrequency: 0.20, gap: 0.20, pattern: 0.10, distribution: 0.18, trend: 0.12, chiSquare: 0.05, poisson: 0.05 }, // 高分布
+    { frequency: 0.15, weightedFrequency: 0.20, gap: 0.20, pattern: 0.10, distribution: 0.15, trend: 0.10, chiSquare: 0.05, poisson: 0.05 }, // 平衡型
+    { frequency: 0.12, weightedFrequency: 0.18, gap: 0.18, pattern: 0.12, distribution: 0.15, trend: 0.15, chiSquare: 0.05, poisson: 0.05 }, // 趨勢優先
+    { frequency: 0.10, weightedFrequency: 0.20, gap: 0.20, pattern: 0.10, distribution: 0.20, trend: 0.10, chiSquare: 0.05, poisson: 0.05 }, // 分布優先
+    { frequency: 0.15, weightedFrequency: 0.20, gap: 0.20, pattern: 0.10, distribution: 0.12, trend: 0.13, chiSquare: 0.05, poisson: 0.05 }, // 趨勢和間隔
+    { frequency: 0.12, weightedFrequency: 0.18, gap: 0.18, pattern: 0.12, distribution: 0.15, trend: 0.15, chiSquare: 0.04, poisson: 0.06 }  // 泊松優先
   ];
   
   // 測試每組初始權重，選擇表現最好的
