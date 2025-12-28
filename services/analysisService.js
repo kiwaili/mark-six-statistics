@@ -1741,6 +1741,7 @@ function generateCompoundBetSuggestions(numbers) {
   
   // 生成不同數量的複式投注建議（7個、8個、9個、10個、11個、12個號碼）
   // 計算組合數：C(n, 6) = n! / (6! * (n-6)!)
+  // 注數計算：7個號碼=7注, 8個號碼=28注, 9個號碼=84注, 10個號碼=210注, 11個號碼=462注, 12個號碼=924注
   const calculateCombinations = (n, k) => {
     if (k > n || k < 0) return 0;
     if (k === 0 || k === n) return 1;
@@ -1752,8 +1753,16 @@ function generateCompoundBetSuggestions(numbers) {
     return Math.round(result);
   };
   
-  // 生成7到12個號碼的複式投注建議
-  for (let numCount = 7; numCount <= Math.min(12, numberArray.length); numCount++) {
+  // 生成7到12個號碼的複式投注建議（包含注數7的建議，即7個號碼=7注）
+  // 確保至少生成7個號碼的建議（7注）
+  const minNumberCount = 7;
+  const maxNumberCount = Math.min(12, numberArray.length);
+  
+  if (maxNumberCount < minNumberCount) {
+    throw new Error(`號碼數量不足${minNumberCount}個，無法生成複式投注建議`);
+  }
+  
+  for (let numCount = minNumberCount; numCount <= maxNumberCount; numCount++) {
     const selectedNumbers = numberArray.slice(0, numCount);
     const totalBets = calculateCombinations(numCount, 6);
     const totalAmount = totalBets * 10; // 每注$10
