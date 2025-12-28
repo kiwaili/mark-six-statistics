@@ -494,17 +494,18 @@ function analyzeNumbers(results, weights = {}) {
   const normalizedPoissonScore = normalize(poissonResult.scores);
 
   // 計算綜合分數（加權組合）
-  // 預設權重: 頻率: 15%, 加權頻率: 20%, 間隔: 20%, 模式: 10%, 分布: 15%, 趨勢: 10%, 卡方: 5%, 泊松: 5%
+  // 優化權重分配以提高準確率至50%：更重視趨勢和分布分析
+  // 預設權重: 頻率: 12%, 加權頻率: 18%, 間隔: 18%, 模式: 10%, 分布: 18%, 趨勢: 15%, 卡方: 5%, 泊松: 4%
   // 如果提供了自訂權重，則使用自訂權重
   const defaultWeights = {
-    frequency: 0.15,
-    weightedFrequency: 0.20,
-    gap: 0.20,
+    frequency: 0.12,
+    weightedFrequency: 0.18,
+    gap: 0.18,
     pattern: 0.10,
-    distribution: 0.15,
-    trend: 0.10,
+    distribution: 0.18,
+    trend: 0.15,
     chiSquare: 0.05,
-    poisson: 0.05
+    poisson: 0.04
   };
   
   const finalWeights = {
@@ -1477,15 +1478,18 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   
   // 根據準確率差距和指標表現調整權重
   // 動態學習率：準確率差距越大，學習率越高
+  // 優化目標：提高準確率至50%
   // 如果命中數少於目標（至少3），使用更強的學習率
-  // 優先考慮命中數：命中數少於3時，給予更高的權重
-  const baseLearningRate = 0.20; // 提高基礎學習率
-  const hitCountMultiplier = hitCountGap > 0 ? (1 + hitCountGap * 0.5) : 1; // 命中數少於3時大幅增加學習率（更積極）
-  // 如果命中數少於3，優先考慮命中數而非準確率
-  const priorityFactor = hitCountGap > 0 ? 1.5 : 1; // 命中數不足時，優先級提高50%
-  const learningRate = Math.min(0.6, baseLearningRate * (1 + Math.abs(accuracyGap) / 40) * hitCountMultiplier * priorityFactor); // 提高最大學習率
-  // 命中數差距的權重更高（命中數至少3是硬性要求）
-  const adjustmentFactor = (accuracyGap / 100) + (hitCountGap > 0 ? hitCountGap * 0.25 : 0); // 更積極的調整幅度，命中數權重更高
+  // 優先考慮準確率：準確率低於50%時，給予更高的優先級
+  const baseLearningRate = 0.30; // 大幅提高基礎學習率以更快達到50%準確率
+  const hitCountMultiplier = hitCountGap > 0 ? (1 + hitCountGap * 0.6) : 1; // 命中數少於3時大幅增加學習率（更積極）
+  // 準確率不足時，優先考慮準確率
+  const accuracyPriorityFactor = currentAccuracy < targetAccuracy ? 1.8 : 1; // 準確率不足時，優先級提高80%
+  const hitCountPriorityFactor = hitCountGap > 0 ? 1.3 : 1; // 命中數不足時，優先級提高30%
+  const priorityFactor = Math.max(accuracyPriorityFactor, hitCountPriorityFactor); // 取較高的優先級
+  const learningRate = Math.min(0.75, baseLearningRate * (1 + Math.abs(accuracyGap) / 30) * hitCountMultiplier * priorityFactor); // 提高最大學習率至75%
+  // 準確率差距的權重更高（準確率50%是主要目標）
+  const adjustmentFactor = (accuracyGap / 80) + (hitCountGap > 0 ? hitCountGap * 0.3 : 0); // 更積極的調整幅度，準確率權重更高
   
   // 初始化新權重（如果不存在）
   if (newWeights.distribution === undefined) newWeights.distribution = 0.15;
@@ -1553,8 +1557,9 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
         newWeights.poisson = Math.max(0.05, newWeights.poisson - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performancePoisson) / totalPerformance));
       }
     } else {
-      // 如果準確率已達標，微調以保持或進一步提升
-      const fineTuneRate = 0.02;
+      // 如果準確率已達標，微調以保持或進一步提升至更高準確率
+      // 即使已達標，也要繼續優化以提高準確率
+      const fineTuneRate = currentAccuracy >= targetAccuracy ? 0.03 : 0.02; // 已達標時使用更大的微調率
       const performances = [
         { name: 'frequency', value: performanceFrequency },
         { name: 'weightedFrequency', value: performanceWeightedFrequency },
@@ -1566,40 +1571,44 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
         { name: 'poisson', value: performancePoisson, available: !!analysisDetails.poisson }
       ].filter(p => p.available !== false);
       
-      const bestPerformance = performances.reduce((best, current) => 
-        current.value > best.value ? current : best
-      );
+      // 選擇表現最好的前2個指標，給予更多權重
+      const sortedPerformances = performances.sort((a, b) => b.value - a.value);
+      const topPerformers = sortedPerformances.slice(0, 2);
       
-      if (bestPerformance && newWeights[bestPerformance.name] !== undefined) {
-        newWeights[bestPerformance.name] += fineTuneRate;
-      }
+      topPerformers.forEach(performer => {
+        if (newWeights[performer.name] !== undefined && performer.value > 0) {
+          newWeights[performer.name] += fineTuneRate * (performer === topPerformers[0] ? 1.0 : 0.5);
+        }
+      });
     }
   } else {
-    // 如果無法計算效能，使用啟發式調整
+    // 如果無法計算效能，使用啟發式調整（優化準確率）
     if (comparison.hitCount === 0) {
-      // 完全沒命中，增加間隔、模式、趨勢和分布權重
-      newWeights.gap = Math.min(0.4, (newWeights.gap || 0.2) + 0.05);
-      newWeights.pattern = Math.min(0.3, (newWeights.pattern || 0.1) + 0.03);
-      newWeights.trend = Math.min(0.2, (newWeights.trend || 0.1) + 0.02);
-      newWeights.distribution = Math.min(0.25, (newWeights.distribution || 0.15) + 0.02);
-      newWeights.frequency = Math.max(0.05, (newWeights.frequency || 0.15) - 0.04);
-      newWeights.weightedFrequency = Math.max(0.05, (newWeights.weightedFrequency || 0.2) - 0.04);
-    } else if (comparison.hitCount < targetHitCount) {
-      // 命中數少於目標（至少3），積極調整權重
-      // 增加間隔、模式、趨勢和分布權重（這些指標可能有助於提高命中數）
-      // 命中數不足時，調整幅度更大
+      // 完全沒命中，大幅增加趨勢、分布和間隔權重（這些指標對提高準確率更有效）
+      newWeights.gap = Math.min(0.45, (newWeights.gap || 0.18) + 0.08);
+      newWeights.trend = Math.min(0.25, (newWeights.trend || 0.15) + 0.05);
+      newWeights.distribution = Math.min(0.28, (newWeights.distribution || 0.18) + 0.05);
+      newWeights.pattern = Math.min(0.25, (newWeights.pattern || 0.10) + 0.03);
+      newWeights.frequency = Math.max(0.05, (newWeights.frequency || 0.12) - 0.06);
+      newWeights.weightedFrequency = Math.max(0.05, (newWeights.weightedFrequency || 0.18) - 0.05);
+    } else if (comparison.hitCount < targetHitCount || currentAccuracy < targetAccuracy) {
+      // 命中數少於目標或準確率低於目標，積極調整權重以提高準確率
+      // 優先增加趨勢、分布和間隔權重（這些指標對提高準確率更有效）
       const hitCountDeficit = targetHitCount - comparison.hitCount;
-      const adjustmentAmount = hitCountDeficit * 0.08; // 進一步提高調整幅度
-      newWeights.gap = Math.min(0.5, (newWeights.gap || 0.2) + adjustmentAmount);
-      newWeights.pattern = Math.min(0.4, (newWeights.pattern || 0.1) + adjustmentAmount * 1.0);
-      newWeights.trend = Math.min(0.3, (newWeights.trend || 0.1) + adjustmentAmount * 0.8);
-      newWeights.distribution = Math.min(0.3, (newWeights.distribution || 0.15) + adjustmentAmount * 0.6);
-      newWeights.weightedFrequency = Math.min(0.55, (newWeights.weightedFrequency || 0.2) + adjustmentAmount * 0.7);
+      const accuracyDeficit = targetAccuracy - currentAccuracy;
+      const adjustmentAmount = Math.max(hitCountDeficit * 0.10, accuracyDeficit * 0.15); // 更積極的調整幅度
+      newWeights.gap = Math.min(0.50, (newWeights.gap || 0.18) + adjustmentAmount);
+      newWeights.trend = Math.min(0.30, (newWeights.trend || 0.15) + adjustmentAmount * 0.9);
+      newWeights.distribution = Math.min(0.30, (newWeights.distribution || 0.18) + adjustmentAmount * 0.8);
+      newWeights.pattern = Math.min(0.35, (newWeights.pattern || 0.10) + adjustmentAmount * 0.7);
+      newWeights.weightedFrequency = Math.min(0.55, (newWeights.weightedFrequency || 0.18) + adjustmentAmount * 0.6);
       // 稍微減少頻率權重
-      newWeights.frequency = Math.max(0.05, (newWeights.frequency || 0.15) - adjustmentAmount * 0.5);
-    } else if (comparison.hitCount >= targetHitCount) {
-      // 命中3個以上，保持當前權重，稍微增加表現最好的指標
-      // 這裡可以根據歷史表現來決定
+      newWeights.frequency = Math.max(0.05, (newWeights.frequency || 0.12) - adjustmentAmount * 0.4);
+    } else if (comparison.hitCount >= targetHitCount && currentAccuracy >= targetAccuracy) {
+      // 已達標，繼續微調以提高準確率
+      // 增加表現最好的指標權重
+      newWeights.trend = Math.min(0.30, (newWeights.trend || 0.15) + 0.02);
+      newWeights.distribution = Math.min(0.30, (newWeights.distribution || 0.18) + 0.02);
     }
   }
   
@@ -1652,16 +1661,16 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
   const validationResults = [];
   
   // 使用多組初始權重進行測試，選擇最佳的一組
-  // 針對6個號碼預測優化：增加間隔、模式、趨勢和分布權重（這些指標對提高命中率更有效）
-  // 目標：平均每期命中數至少3
+  // 優化目標：提高準確率至50%，更重視趨勢、分布和間隔分析
+  // 目標：平均每期命中數至少3，準確率至少50%
   const initialWeightSets = [
-    { frequency: 0.12, weightedFrequency: 0.18, gap: 0.20, pattern: 0.10, distribution: 0.15, trend: 0.15, chiSquare: 0.05, poisson: 0.05 }, // 趨勢和分布優先
-    { frequency: 0.10, weightedFrequency: 0.20, gap: 0.20, pattern: 0.10, distribution: 0.18, trend: 0.12, chiSquare: 0.05, poisson: 0.05 }, // 高分布
-    { frequency: 0.15, weightedFrequency: 0.20, gap: 0.20, pattern: 0.10, distribution: 0.15, trend: 0.10, chiSquare: 0.05, poisson: 0.05 }, // 平衡型
-    { frequency: 0.12, weightedFrequency: 0.18, gap: 0.18, pattern: 0.12, distribution: 0.15, trend: 0.15, chiSquare: 0.05, poisson: 0.05 }, // 趨勢優先
-    { frequency: 0.10, weightedFrequency: 0.20, gap: 0.20, pattern: 0.10, distribution: 0.20, trend: 0.10, chiSquare: 0.05, poisson: 0.05 }, // 分布優先
-    { frequency: 0.15, weightedFrequency: 0.20, gap: 0.20, pattern: 0.10, distribution: 0.12, trend: 0.13, chiSquare: 0.05, poisson: 0.05 }, // 趨勢和間隔
-    { frequency: 0.12, weightedFrequency: 0.18, gap: 0.18, pattern: 0.12, distribution: 0.15, trend: 0.15, chiSquare: 0.04, poisson: 0.06 }  // 泊松優先
+    { frequency: 0.10, weightedFrequency: 0.16, gap: 0.20, pattern: 0.10, distribution: 0.18, trend: 0.16, chiSquare: 0.05, poisson: 0.03 }, // 趨勢和分布優先（優化準確率）
+    { frequency: 0.08, weightedFrequency: 0.18, gap: 0.20, pattern: 0.10, distribution: 0.20, trend: 0.14, chiSquare: 0.05, poisson: 0.03 }, // 高分布和間隔
+    { frequency: 0.12, weightedFrequency: 0.18, gap: 0.18, pattern: 0.10, distribution: 0.18, trend: 0.14, chiSquare: 0.05, poisson: 0.03 }, // 平衡型（優化準確率）
+    { frequency: 0.10, weightedFrequency: 0.16, gap: 0.18, pattern: 0.12, distribution: 0.18, trend: 0.16, chiSquare: 0.05, poisson: 0.03 }, // 趨勢和分布優先
+    { frequency: 0.08, weightedFrequency: 0.18, gap: 0.22, pattern: 0.10, distribution: 0.18, trend: 0.14, chiSquare: 0.05, poisson: 0.03 }, // 高間隔和分布
+    { frequency: 0.12, weightedFrequency: 0.16, gap: 0.20, pattern: 0.10, distribution: 0.16, trend: 0.16, chiSquare: 0.05, poisson: 0.03 }, // 趨勢和間隔優先
+    { frequency: 0.10, weightedFrequency: 0.18, gap: 0.18, pattern: 0.10, distribution: 0.20, trend: 0.14, chiSquare: 0.04, poisson: 0.04 }  // 分布優先
   ];
   
   // 測試每組初始權重，選擇表現最好的
@@ -1707,30 +1716,32 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
       const avgAccuracy = testAccuracy / testCount;
       const avgHitCount = totalHitCount / testCount;
       
-      // 優先選擇命中數更高的（目標平均命中數至少3），如果命中數相同則選擇準確率更高的
-      // 如果平均命中數達到或超過3，優先選擇；否則選擇最接近3的
-      if (avgHitCount >= 3) {
-        // 如果當前和最佳都達到3，選擇更高的
-        if (bestAverageHitCount >= 3) {
-          if (avgHitCount > bestAverageHitCount || 
-              (avgHitCount === bestAverageHitCount && avgAccuracy > bestAverageAccuracy)) {
+      // 優先選擇準確率更高的（目標準確率至少50%），如果準確率相同則選擇命中數更高的
+      // 優化目標：準確率優先，同時確保命中數至少3
+      if (avgAccuracy >= 50) {
+        // 如果當前準確率達到50%，優先選擇
+        if (bestAverageAccuracy >= 50) {
+          // 如果當前和最佳都達到50%，選擇準確率更高的，如果相同則選擇命中數更高的
+          if (avgAccuracy > bestAverageAccuracy || 
+              (avgAccuracy === bestAverageAccuracy && avgHitCount > bestAverageHitCount)) {
             bestAverageAccuracy = avgAccuracy;
             bestAverageHitCount = avgHitCount;
             bestWeights = testWeights;
           }
         } else {
-          // 當前達到3，最佳未達到，選擇當前
+          // 當前達到50%，最佳未達到，選擇當前
           bestAverageAccuracy = avgAccuracy;
           bestAverageHitCount = avgHitCount;
           bestWeights = testWeights;
         }
       } else {
-        // 當前未達到3，只有在最佳也未達到且當前更接近3時才選擇
-        if (bestAverageHitCount < 3 && avgHitCount > bestAverageHitCount) {
+        // 當前未達到50%，優先選擇準確率更高的
+        if (avgAccuracy > bestAverageAccuracy) {
           bestAverageAccuracy = avgAccuracy;
           bestAverageHitCount = avgHitCount;
           bestWeights = testWeights;
-        } else if (bestAverageHitCount < 3 && avgHitCount === bestAverageHitCount && avgAccuracy > bestAverageAccuracy) {
+        } else if (avgAccuracy === bestAverageAccuracy && avgHitCount > bestAverageHitCount) {
+          // 準確率相同時，選擇命中數更高的
           bestAverageAccuracy = avgAccuracy;
           bestAverageHitCount = avgHitCount;
           bestWeights = testWeights;
