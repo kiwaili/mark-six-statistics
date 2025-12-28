@@ -212,12 +212,12 @@ function analyzeNumbers(results, weights = {}) {
   const normalizedPatternScore = normalize(patternScore);
 
   // 計算綜合分數（加權組合）
-  // 預設權重: 頻率: 30%, 加權頻率: 35%, 間隔: 20%, 模式: 15%
+  // 預設權重: 頻率: 25%, 加權頻率: 30%, 間隔: 30%, 模式: 15% (優化以提高命中率，目標平均命中數至少3)
   // 如果提供了自訂權重，則使用自訂權重
   const defaultWeights = {
-    frequency: 0.30,
-    weightedFrequency: 0.35,
-    gap: 0.20,
+    frequency: 0.25,
+    weightedFrequency: 0.30,
+    gap: 0.30,
     pattern: 0.15
   };
   
@@ -246,7 +246,7 @@ function analyzeNumbers(results, weights = {}) {
       normalizedPatternScore[i] * finalWeights.pattern;
   }
   
-  // 取得前 30 名（大幅增加候選數量以提高命中至少3個的概率）
+  // 取得前 40 名（增加候選數量以提高命中至少3個的概率，目標平均命中數至少3）
   const topNumbers = Object.entries(compositeScore)
     .map(([num, score]) => ({
       number: parseInt(num, 10),
@@ -257,7 +257,7 @@ function analyzeNumbers(results, weights = {}) {
       patternScore: Math.round(patternScore[num] * 100) / 100
     }))
     .sort((a, b) => b.score - a.score)
-    .slice(0, 30); // 從20增加到30，提供更多候選號碼
+    .slice(0, 40); // 增加到40個候選號碼，提供更多選擇以提高命中率
   
   // 計算統計摘要
   const stats = {
@@ -434,30 +434,34 @@ function selectOptimalNumbers(topNumbers, count = 6, historicalResults = null) {
       }
     });
     
-    // 優先選擇歷史表現最好的策略（至少命中3個的比率最高）
-    candidates.sort((a, b) => {
-      const perfA = strategyPerformance[a.strategy];
-      const perfB = strategyPerformance[b.strategy];
-      if (perfA && perfB) {
-        const rateA = perfA.atLeast3 / perfA.total;
-        const rateB = perfB.atLeast3 / perfB.total;
-        if (rateA !== rateB) return rateB - rateA;
-        return (perfB.hits / perfB.total) - (perfA.hits / perfA.total);
-      }
-      return 0;
-    });
+      // 優先選擇歷史表現最好的策略（至少命中3個的比率最高，目標平均命中數至少3）
+      candidates.sort((a, b) => {
+        const perfA = strategyPerformance[a.strategy];
+        const perfB = strategyPerformance[b.strategy];
+        if (perfA && perfB) {
+          const avgHitA = perfA.hits / perfA.total;
+          const avgHitB = perfB.hits / perfB.total;
+          const rateA = perfA.atLeast3 / perfA.total;
+          const rateB = perfB.atLeast3 / perfB.total;
+          // 優先考慮平均命中數（目標至少3），其次考慮至少3個的比率
+          if (avgHitA !== avgHitB) return avgHitB - avgHitA;
+          if (rateA !== rateB) return rateB - rateA;
+          return 0;
+        }
+        return 0;
+      });
   }
   
-  // 評估每個候選組合的綜合分數（優化命中至少3個）
+  // 評估每個候選組合的綜合分數（優化命中至少3個，目標平均命中數至少3）
   const scoredCandidates = candidates.map(candidate => {
     const numbers = candidate.numbers;
     let score = 0;
     
-    // 1. 原始分數總和（權重35%，降低以給其他因素更多權重）
+    // 1. 原始分數總和（權重40%，提高以確保選擇高分號碼）
     const totalOriginalScore = numbers.reduce((sum, n) => sum + (n.score || 0), 0);
-    score += totalOriginalScore * 0.35;
+    score += totalOriginalScore * 0.40;
     
-    // 2. 多樣性分數（權重25%）
+    // 2. 多樣性分數（權重20%）
     let diversityScore = 0;
     for (let i = 0; i < numbers.length; i++) {
       for (let j = i + 1; j < numbers.length; j++) {
@@ -465,21 +469,21 @@ function selectOptimalNumbers(topNumbers, count = 6, historicalResults = null) {
         diversityScore += distance;
       }
     }
-    score += (diversityScore / (numbers.length * (numbers.length - 1) / 2)) * 0.25;
+    score += (diversityScore / (numbers.length * (numbers.length - 1) / 2)) * 0.20;
     
-    // 3. 分數分布均勻性（權重15%）
+    // 3. 分數分布均勻性（權重10%）
     const scores = numbers.map(n => n.score || 0);
     const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
     const variance = scores.reduce((sum, s) => sum + Math.pow(s - avgScore, 2), 0) / scores.length;
-    score += (100 / (1 + variance)) * 0.15;
+    score += (100 / (1 + variance)) * 0.10;
     
     // 4. 號碼範圍覆蓋（權重10%）
     const minNum = Math.min(...numbers.map(n => n.number));
     const maxNum = Math.max(...numbers.map(n => n.number));
     const range = maxNum - minNum;
-    score += (range / 49) * 100 * 0.1;
+    score += (range / 49) * 100 * 0.10;
     
-    // 5. 歷史表現加成（權重15%，如果有歷史數據）
+    // 5. 歷史表現加成（權重20%，如果有歷史數據，提高權重以更重視歷史表現）
     let historyBonus = 0;
     if (historicalResults && historicalResults.length > 0) {
       const strategyPerf = historicalResults
@@ -489,11 +493,11 @@ function selectOptimalNumbers(topNumbers, count = 6, historicalResults = null) {
       if (strategyPerf.length > 0) {
         const avgHitCount = strategyPerf.reduce((a, b) => a + b, 0) / strategyPerf.length;
         const atLeast3Rate = strategyPerf.filter(h => h >= 3).length / strategyPerf.length;
-        // 歷史平均命中數和至少3個的比率都給予加成
-        historyBonus = (avgHitCount * 10) + (atLeast3Rate * 50);
+        // 歷史平均命中數和至少3個的比率都給予加成（提高加成係數以更重視歷史表現）
+        historyBonus = (avgHitCount * 15) + (atLeast3Rate * 60);
       }
     }
-    score += historyBonus * 0.15;
+    score += historyBonus * 0.20;
     
     return { numbers, strategy: candidate.strategy, score };
   });
@@ -514,13 +518,14 @@ function selectOptimalNumbers(topNumbers, count = 6, historicalResults = null) {
       }
     });
     
-    // 對候選組合進行二次排序：優先選擇歷史至少命中3個比率最高的
+    // 對候選組合進行二次排序：優先選擇歷史至少命中3個比率最高的（提高加成以更重視歷史表現）
     scoredCandidates.forEach(candidate => {
       const perf = strategyPerformance[candidate.strategy];
       if (perf && perf.total > 0) {
         const atLeast3Rate = perf.atLeast3 / perf.total;
-        // 如果歷史至少命中3個的比率高，給予額外加成
-        candidate.score += atLeast3Rate * 100;
+        const avgHitCount = perf.hits / perf.total;
+        // 如果歷史至少命中3個的比率高或平均命中數高，給予額外加成（提高加成係數）
+        candidate.score += atLeast3Rate * 150 + avgHitCount * 30;
       }
     });
   }
@@ -1246,14 +1251,15 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
   
   // 使用多組初始權重進行測試，選擇最佳的一組
   // 針對6個號碼預測優化：增加間隔和模式權重（這些指標對提高命中率更有效）
+  // 目標：平均每期命中數至少3
   const initialWeightSets = [
-    { frequency: 0.25, weightedFrequency: 0.35, gap: 0.25, pattern: 0.15 }, // 平衡型
-    { frequency: 0.20, weightedFrequency: 0.40, gap: 0.25, pattern: 0.15 }, // 加權頻率優先
-    { frequency: 0.20, weightedFrequency: 0.30, gap: 0.30, pattern: 0.20 }, // 間隔和模式優先（提高命中率）
+    { frequency: 0.20, weightedFrequency: 0.30, gap: 0.30, pattern: 0.20 }, // 間隔和模式優先（優化命中率）
+    { frequency: 0.18, weightedFrequency: 0.32, gap: 0.30, pattern: 0.20 }, // 高間隔和模式
+    { frequency: 0.22, weightedFrequency: 0.28, gap: 0.32, pattern: 0.18 }, // 高間隔
     { frequency: 0.25, weightedFrequency: 0.30, gap: 0.30, pattern: 0.15 }, // 間隔優先
-    { frequency: 0.20, weightedFrequency: 0.35, gap: 0.25, pattern: 0.20 }, // 模式優先
+    { frequency: 0.20, weightedFrequency: 0.35, gap: 0.25, pattern: 0.20 }, // 加權頻率和模式
     { frequency: 0.22, weightedFrequency: 0.33, gap: 0.28, pattern: 0.17 }, // 優化組合
-    { frequency: 0.18, weightedFrequency: 0.32, gap: 0.30, pattern: 0.20 }  // 高間隔和模式
+    { frequency: 0.25, weightedFrequency: 0.35, gap: 0.25, pattern: 0.15 }  // 平衡型
   ];
   
   // 測試每組初始權重，選擇表現最好的
@@ -1299,12 +1305,34 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
       const avgAccuracy = testAccuracy / testCount;
       const avgHitCount = totalHitCount / testCount;
       
-      // 優先選擇命中數更高的，如果命中數相同則選擇準確率更高的
-      if (avgHitCount > bestAverageHitCount || 
-          (avgHitCount === bestAverageHitCount && avgAccuracy > bestAverageAccuracy)) {
-        bestAverageAccuracy = avgAccuracy;
-        bestAverageHitCount = avgHitCount;
-        bestWeights = testWeights;
+      // 優先選擇命中數更高的（目標平均命中數至少3），如果命中數相同則選擇準確率更高的
+      // 如果平均命中數達到或超過3，優先選擇；否則選擇最接近3的
+      if (avgHitCount >= 3) {
+        // 如果當前和最佳都達到3，選擇更高的
+        if (bestAverageHitCount >= 3) {
+          if (avgHitCount > bestAverageHitCount || 
+              (avgHitCount === bestAverageHitCount && avgAccuracy > bestAverageAccuracy)) {
+            bestAverageAccuracy = avgAccuracy;
+            bestAverageHitCount = avgHitCount;
+            bestWeights = testWeights;
+          }
+        } else {
+          // 當前達到3，最佳未達到，選擇當前
+          bestAverageAccuracy = avgAccuracy;
+          bestAverageHitCount = avgHitCount;
+          bestWeights = testWeights;
+        }
+      } else {
+        // 當前未達到3，只有在最佳也未達到且當前更接近3時才選擇
+        if (bestAverageHitCount < 3 && avgHitCount > bestAverageHitCount) {
+          bestAverageAccuracy = avgAccuracy;
+          bestAverageHitCount = avgHitCount;
+          bestWeights = testWeights;
+        } else if (bestAverageHitCount < 3 && avgHitCount === bestAverageHitCount && avgAccuracy > bestAverageAccuracy) {
+          bestAverageAccuracy = avgAccuracy;
+          bestAverageHitCount = avgHitCount;
+          bestWeights = testWeights;
+        }
       }
     }
   }
