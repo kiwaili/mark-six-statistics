@@ -2082,9 +2082,12 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
   
   // 如果目標未達成，進行迭代優化直到達成目標
   let optimizationIterations = 0;
-  const maxOptimizationIterations = 5; // 最大優化迭代次數
+  const maxOptimizationIterations = 1000; // 最大優化迭代次數（增加到1000）
   let optimizedWeights = { ...currentWeights };
   let optimizedValidationResults = [...validationResults];
+  let noImprovementCount = 0; // 記錄連續未改善的次數
+  let bestOptimizedHitCount = averageHitCount; // 記錄最佳平均命中數（優化循環中）
+  let bestOptimizedAccuracy = averageAccuracy; // 記錄最佳平均準確率（優化循環中）
   
   while (!meetsAllTargets && optimizationIterations < maxOptimizationIterations) {
     optimizationIterations++;
@@ -2094,23 +2097,46 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
     const hitCountGap = Math.max(0, targetAverageHitCount - averageHitCount);
     const accuracyGap = Math.max(0, targetAverageAccuracy - averageAccuracy);
     
+    // 根據迭代次數和未改善次數動態調整優化策略
+    const iterationFactor = Math.min(1.5, 1 + optimizationIterations * 0.01); // 隨迭代次數增加調整幅度
+    const noImprovementFactor = Math.min(2.0, 1 + noImprovementCount * 0.1); // 未改善時增加調整幅度
+    
     // 根據差距調整權重策略
     // 如果命中數不足，增加間隔和趨勢權重（這些指標有助於提高命中數）
     // 如果準確率不足，增加分布和加權頻率權重（這些指標有助於提高準確率）
     if (hitCountGap > 0) {
       // 命中數不足，增加間隔、趨勢和模式權重
-      optimizedWeights.gap = Math.min(0.35, (optimizedWeights.gap || 0.18) + hitCountGap * 0.05);
-      optimizedWeights.trend = Math.min(0.30, (optimizedWeights.trend || 0.15) + hitCountGap * 0.04);
-      optimizedWeights.pattern = Math.min(0.25, (optimizedWeights.pattern || 0.10) + hitCountGap * 0.03);
-      optimizedWeights.frequency = Math.max(0.05, (optimizedWeights.frequency || 0.12) - hitCountGap * 0.02);
+      const adjustment = hitCountGap * 0.05 * iterationFactor * noImprovementFactor;
+      optimizedWeights.gap = Math.min(0.40, (optimizedWeights.gap || 0.18) + adjustment);
+      optimizedWeights.trend = Math.min(0.35, (optimizedWeights.trend || 0.15) + adjustment * 0.8);
+      optimizedWeights.pattern = Math.min(0.30, (optimizedWeights.pattern || 0.10) + adjustment * 0.6);
+      optimizedWeights.distribution = Math.min(0.35, (optimizedWeights.distribution || 0.18) + adjustment * 0.4);
+      optimizedWeights.frequency = Math.max(0.05, (optimizedWeights.frequency || 0.12) - adjustment * 0.3);
     }
     
     if (accuracyGap > 0) {
       // 準確率不足，增加分布、加權頻率和趨勢權重
-      optimizedWeights.distribution = Math.min(0.35, (optimizedWeights.distribution || 0.18) + accuracyGap * 0.003);
-      optimizedWeights.weightedFrequency = Math.min(0.40, (optimizedWeights.weightedFrequency || 0.18) + accuracyGap * 0.002);
-      optimizedWeights.trend = Math.min(0.30, (optimizedWeights.trend || 0.15) + accuracyGap * 0.002);
-      optimizedWeights.frequency = Math.max(0.05, (optimizedWeights.frequency || 0.12) - accuracyGap * 0.001);
+      const adjustment = accuracyGap * 0.003 * iterationFactor * noImprovementFactor;
+      optimizedWeights.distribution = Math.min(0.40, (optimizedWeights.distribution || 0.18) + adjustment);
+      optimizedWeights.weightedFrequency = Math.min(0.45, (optimizedWeights.weightedFrequency || 0.18) + adjustment * 0.8);
+      optimizedWeights.trend = Math.min(0.35, (optimizedWeights.trend || 0.15) + adjustment * 0.7);
+      optimizedWeights.gap = Math.min(0.40, (optimizedWeights.gap || 0.18) + adjustment * 0.5);
+      optimizedWeights.frequency = Math.max(0.05, (optimizedWeights.frequency || 0.12) - adjustment * 0.2);
+    }
+    
+    // 如果連續多次未改善，嘗試更激進的策略
+    if (noImprovementCount >= 5) {
+      // 重置權重，嘗試完全不同的權重組合
+      const resetStrategies = [
+        { frequency: 0.05, weightedFrequency: 0.20, gap: 0.25, pattern: 0.15, distribution: 0.20, trend: 0.10, chiSquare: 0.03, poisson: 0.02 },
+        { frequency: 0.08, weightedFrequency: 0.15, gap: 0.30, pattern: 0.12, distribution: 0.20, trend: 0.10, chiSquare: 0.03, poisson: 0.02 },
+        { frequency: 0.10, weightedFrequency: 0.18, gap: 0.22, pattern: 0.10, distribution: 0.25, trend: 0.10, chiSquare: 0.03, poisson: 0.02 },
+        { frequency: 0.06, weightedFrequency: 0.20, gap: 0.20, pattern: 0.14, distribution: 0.25, trend: 0.10, chiSquare: 0.03, poisson: 0.02 }
+      ];
+      const strategyIndex = Math.floor((optimizationIterations - 1) / 10) % resetStrategies.length;
+      optimizedWeights = { ...resetStrategies[strategyIndex] };
+      console.log(`連續 ${noImprovementCount} 次未改善，嘗試策略 ${strategyIndex + 1}`);
+      noImprovementCount = 0; // 重置未改善計數
     }
     
     // 正規化權重
@@ -2217,12 +2243,21 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
       const revalidationAverageHitCount = revalidationTotalHits / revalidationResults.length;
       const revalidationAverageAccuracy = revalidationResults.reduce((sum, r) => sum + r.comparison.accuracy, 0) / revalidationResults.length;
       
-      // 如果優化後的結果更好，更新結果
-      const improvedHitCount = revalidationAverageHitCount > averageHitCount;
-      const improvedAccuracy = revalidationAverageAccuracy > averageAccuracy;
-      const meetsTargetsAfterOptimization = revalidationAverageHitCount >= targetAverageHitCount && revalidationAverageAccuracy >= targetAverageAccuracy;
-      
-      if (improvedHitCount || improvedAccuracy || meetsTargetsAfterOptimization) {
+        // 如果優化後的結果更好，更新結果
+        // 即使未見改善，如果更接近目標也接受（允許小幅波動）
+        const improvedHitCount = revalidationAverageHitCount > averageHitCount;
+        const improvedAccuracy = revalidationAverageAccuracy > averageAccuracy;
+        const meetsTargetsAfterOptimization = revalidationAverageHitCount >= targetAverageHitCount && revalidationAverageAccuracy >= targetAverageAccuracy;
+        
+        // 計算是否更接近目標（即使未改善，只要更接近目標就接受）
+        const currentDistance = Math.max(0, targetAverageHitCount - averageHitCount) * 10 + 
+                                Math.max(0, targetAverageAccuracy - averageAccuracy);
+        const newDistance = Math.max(0, targetAverageHitCount - revalidationAverageHitCount) * 10 + 
+                           Math.max(0, targetAverageAccuracy - revalidationAverageAccuracy);
+        const closerToTarget = newDistance < currentDistance;
+        
+        // 如果改善、達成目標、或更接近目標，都接受結果
+        if (improvedHitCount || improvedAccuracy || meetsTargetsAfterOptimization || closerToTarget || optimizationIterations <= 10) {
         // 使用優化後的結果更新統計
         // 將優化後的結果與原始結果合併（優化後的結果優先）
         const originalResults = validationResults.filter(r => 
@@ -2264,16 +2299,44 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
         totalValidations = optimizedTotalValidations;
         totalHits = optimizedTotalHits;
         
+        // 檢查是否真的改善了
+        const actuallyImproved = (averageHitCount > bestOptimizedHitCount) || 
+                                 (averageAccuracy > bestOptimizedAccuracy) ||
+                                 (averageHitCount >= bestOptimizedHitCount && averageAccuracy >= bestOptimizedAccuracy && 
+                                  (averageHitCount > bestOptimizedHitCount || averageAccuracy > bestOptimizedAccuracy));
+        
+        if (actuallyImproved) {
+          bestOptimizedHitCount = averageHitCount;
+          bestOptimizedAccuracy = averageAccuracy;
+          noImprovementCount = 0; // 重置未改善計數
+        } else {
+          noImprovementCount++; // 增加未改善計數
+        }
+        
         console.log(`優化迭代 ${optimizationIterations} 完成，新狀態：平均命中數=${averageHitCount.toFixed(2)}, 平均準確率=${averageAccuracy.toFixed(2)}%`);
+        if (noImprovementCount > 0) {
+          console.log(`已連續 ${noImprovementCount} 次未見改善，將嘗試更激進的策略`);
+        }
         
         if (meetsAllTargets) {
           console.log('✓ 所有目標已達成！');
           break;
         }
       } else {
-        // 如果優化沒有改善，嘗試不同的策略
-        // 增加候選號碼數量或調整選擇策略
-        console.log(`優化迭代 ${optimizationIterations} 未見改善，嘗試其他策略...`);
+        // 如果優化沒有改善，繼續嘗試（不再提前退出）
+        noImprovementCount++;
+        console.log(`優化迭代 ${optimizationIterations} 未見改善（已連續 ${noImprovementCount} 次），繼續嘗試其他策略...`);
+        
+        // 即使未見改善，也更新最佳值（如果更接近目標）
+        const currentDistance = Math.max(0, targetAverageHitCount - averageHitCount) * 10 + 
+                                Math.max(0, targetAverageAccuracy - averageAccuracy);
+        const bestDistance = Math.max(0, targetAverageHitCount - bestOptimizedHitCount) * 10 + 
+                            Math.max(0, targetAverageAccuracy - bestOptimizedAccuracy);
+        
+        if (currentDistance < bestDistance) {
+          bestOptimizedHitCount = averageHitCount;
+          bestOptimizedAccuracy = averageAccuracy;
+        }
       }
     }
   }
