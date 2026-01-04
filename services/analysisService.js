@@ -260,7 +260,7 @@ function calculateDistributionFeatures(allNumbers, excludePeriodNumbers = null) 
  */
 function calculateDistributionScore(allNumbers, excludePeriodNumbers = null) {
   const distributionScore = {};
-  const features = calculateDistributionFeatures(allNumbers);
+  const features = calculateDistributionFeatures(allNumbers, excludePeriodNumbers);
   
   // 初始化所有可能的號碼 (1-49)
   for (let i = 1; i <= 49; i++) {
