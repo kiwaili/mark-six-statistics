@@ -760,17 +760,44 @@
                         </div>
                         <div style="background: white; padding: 15px; border-radius: 8px;">
                             <div style="font-size: 12px; color: #666; margin-bottom: 5px;">平均每期命中數</div>
-                            <div style="font-size: 24px; font-weight: bold; color: #667eea;">${Math.round(validationData.statistics.averageHitsPerPeriod * 100) / 100}</div>
+                            <div style="font-size: 24px; font-weight: bold; color: ${validationData.statistics.meetsHitCountTarget ? '#28a745' : '#dc3545'};">
+                                ${Math.round(validationData.statistics.averageHitsPerPeriod * 100) / 100}
+                                <span style="font-size: 12px; color: #666;">/ ${validationData.statistics.targetAverageHitCount}</span>
+                            </div>
+                            ${validationData.statistics.meetsHitCountTarget ? 
+                                '<div style="font-size: 11px; color: #28a745; margin-top: 5px;">✓ 達標</div>' : 
+                                `<div style="font-size: 11px; color: #dc3545; margin-top: 5px;">✗ ${validationData.statistics.targetSummary?.averageHitCount?.status || '未達標'}</div>`
+                            }
                         </div>
                         <div style="background: white; padding: 15px; border-radius: 8px;">
                             <div style="font-size: 12px; color: #666; margin-bottom: 5px;">平均準確率</div>
-                            <div style="font-size: 24px; font-weight: bold; color: #667eea;">${validationData.statistics.averageAccuracy}%</div>
+                            <div style="font-size: 24px; font-weight: bold; color: ${validationData.statistics.meetsAccuracyTarget ? '#28a745' : '#dc3545'};">
+                                ${validationData.statistics.averageAccuracy}%
+                                <span style="font-size: 12px; color: #666;">/ ${validationData.statistics.targetAverageAccuracy}%</span>
+                            </div>
+                            ${validationData.statistics.meetsAccuracyTarget ? 
+                                '<div style="font-size: 11px; color: #28a745; margin-top: 5px;">✓ 達標</div>' : 
+                                `<div style="font-size: 11px; color: #dc3545; margin-top: 5px;">✗ ${validationData.statistics.targetSummary?.averageAccuracy?.status || '未達標'}</div>`
+                            }
                         </div>
                         <div style="background: white; padding: 15px; border-radius: 8px;">
                             <div style="font-size: 12px; color: #666; margin-bottom: 5px;">平均覆蓋率</div>
                             <div style="font-size: 24px; font-weight: bold; color: #667eea;">${validationData.statistics.averageCoverage}%</div>
                         </div>
                     </div>
+                    ${validationData.statistics.targetSummary ? `
+                    <div style="margin-top: 20px; padding: 15px; background: ${validationData.statistics.meetsAllTargets ? '#d4edda' : '#f8d7da'}; border-radius: 8px; border-left: 4px solid ${validationData.statistics.meetsAllTargets ? '#28a745' : '#dc3545'};">
+                        <h4 style="color: ${validationData.statistics.meetsAllTargets ? '#155724' : '#721c24'}; margin-bottom: 10px;">
+                            ${validationData.statistics.meetsAllTargets ? '✓ 所有目標已達成' : '✗ 部分目標未達成'}
+                        </h4>
+                        <div style="font-size: 14px; color: ${validationData.statistics.meetsAllTargets ? '#155724' : '#721c24'};">
+                            <p><strong>平均命中數:</strong> ${validationData.statistics.targetSummary.averageHitCount.current} / ${validationData.statistics.targetSummary.averageHitCount.target} 
+                            ${validationData.statistics.targetSummary.averageHitCount.meetsTarget ? '✓' : `(${validationData.statistics.targetSummary.averageHitCount.status})`}</p>
+                            <p><strong>平均準確率:</strong> ${validationData.statistics.targetSummary.averageAccuracy.current}% / ${validationData.statistics.targetSummary.averageAccuracy.target}% 
+                            ${validationData.statistics.targetSummary.averageAccuracy.meetsTarget ? '✓' : `(${validationData.statistics.targetSummary.averageAccuracy.status})`}</p>
+                        </div>
+                    </div>
+                    ` : ''}
                 </div>
                 
                 <div style="margin-top: 30px; background: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;">
