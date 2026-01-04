@@ -195,12 +195,18 @@ function calculatePatternScore(allNumbers, excludePeriodNumbers = null) {
 /**
  * 計算統計分布特徵（均值、方差、標準差、偏度、峰度）
  * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @param {Set} excludePeriodNumbers - 可選，要排除的期數集合（期數字串）
  * @returns {Object} 統計分布特徵
  */
-function calculateDistributionFeatures(allNumbers) {
+function calculateDistributionFeatures(allNumbers, excludePeriodNumbers = null) {
+  // 過濾掉需要排除的期數
+  const filteredNumbers = excludePeriodNumbers 
+    ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+    : allNumbers;
+  
   // 收集每期所有號碼的值
   const allNumberValues = [];
-  allNumbers.forEach(period => {
+  filteredNumbers.forEach(period => {
     period.numbers.forEach(num => {
       if (num >= 1 && num <= 49) {
         allNumberValues.push(num);
@@ -510,7 +516,7 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
   const patternScore = calculatePatternScore(allNumbers, excludePeriodNumbers);
   
   // 計算統計分布分析（傳入排除期數）
-  const distributionFeatures = calculateDistributionFeatures(allNumbers);
+  const distributionFeatures = calculateDistributionFeatures(allNumbers, excludePeriodNumbers);
   const distributionScore = calculateDistributionScore(allNumbers, excludePeriodNumbers);
   const trendScore = calculateTrendAnalysis(allNumbers, excludePeriodNumbers);
   const chiSquareResult = calculateChiSquareScore(allNumbers, excludePeriodNumbers);
