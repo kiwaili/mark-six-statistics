@@ -58,8 +58,10 @@ function calculateFrequency(allNumbers, excludePeriodNumbers = null, filteredNum
     frequency[i] = 0;
   }
   
-  // 使用預過濾的數組（如果提供），否則使用原始數組並在循環中過濾
-  const numbersToProcess = filteredNumbers || allNumbers;
+  // 使用預過濾的數組（如果提供），否則根據排除期數過濾
+  const numbersToProcess = filteredNumbers || (excludePeriodNumbers 
+      ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+      : allNumbers);
   
   // 統計每個號碼出現的次數
   numbersToProcess.forEach(period => {
@@ -264,7 +266,11 @@ function calculateDistributionFeatures(allNumbers, excludePeriodNumbers = null, 
  */
 function calculateDistributionScore(allNumbers, excludePeriodNumbers = null, filteredNumbers = null) {
   const distributionScore = {};
-  const features = calculateDistributionFeatures(allNumbers, excludePeriodNumbers, filteredNumbers);
+  // 使用預過濾的數組（如果提供），否則根據排除期數過濾
+  const filtered = filteredNumbers || (excludePeriodNumbers 
+      ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+      : allNumbers);
+  const features = calculateDistributionFeatures(allNumbers, excludePeriodNumbers, filtered);
   
   // 初始化所有可能的號碼 (1-49)
   for (let i = 1; i <= 49; i++) {
@@ -278,11 +284,7 @@ function calculateDistributionScore(allNumbers, excludePeriodNumbers = null, fil
   
   // 計算每個號碼在分布中的位置分數
   // 使用正態分布的Z分數，但考慮實際頻率
-  const frequency = calculateFrequency(allNumbers, excludePeriodNumbers, filteredNumbers);
-  // 使用預過濾的數組（如果提供），否則過濾
-  const filtered = filteredNumbers || (excludePeriodNumbers 
-    ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
-    : allNumbers);
+  const frequency = calculateFrequency(allNumbers, excludePeriodNumbers, filtered);
   const totalPeriods = filtered.length;
   const expectedFrequency = totalPeriods * 6 / 49; // 每期6個號碼，共49個號碼
   
