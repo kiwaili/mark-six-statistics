@@ -613,14 +613,26 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
     .slice(0, 40); // 增加到40個候選號碼，提供更多選擇以提高命中率
   
   // 計算統計摘要
+  // 計算過濾後的期數（當有排除期數時）
+  const filteredNumbers = excludePeriodNumbers 
+    ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+    : allNumbers;
+  const filteredTotalPeriods = filteredNumbers.length;
+  const totalNumbers = Object.values(frequency).reduce((sum, count) => sum + count, 0);
+  
   const stats = {
-    totalPeriods: allNumbers.length,
-    totalNumbers: Object.values(frequency).reduce((sum, count) => sum + count, 0),
-    averageFrequency: Object.values(frequency).reduce((sum, count) => sum + count, 0) / 49,
+    totalPeriods: filteredTotalPeriods, // 使用過濾後的期數，與 frequency 計算保持一致
+    totalNumbers: totalNumbers,
+    averageFrequency: totalNumbers / 49,
     mostFrequent: Object.entries(frequency)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
-      .map(([num, count]) => ({ number: parseInt(num, 10), count }))
+      .map(([num, count]) => ({ number: parseInt(num, 10), count })),
+    // 當有排除期數時，提供原始期數信息以便參考
+    ...(excludePeriodNumbers && excludePeriodNumbers.size > 0 ? {
+      originalTotalPeriods: allNumbers.length,
+      excludedPeriods: excludePeriodNumbers.size
+    } : {})
   };
   
   // 生成複式投注建議（多個選項：7個、8個、9個、10個號碼等）
