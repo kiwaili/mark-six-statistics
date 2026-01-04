@@ -1795,8 +1795,8 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
   let bestAverageAccuracy = 0;
   let bestAverageHitCount = 0;
   
-  // 增加測試期數以提高選擇準確性（使用前7期數據）
-  const testPeriods = Math.min(7, startIndex);
+  // 增加測試期數以提高選擇準確性（使用前100期數據）
+  const testPeriods = Math.min(100, startIndex);
   for (const testWeights of initialWeightSets) {
     let testAccuracy = 0;
     let totalHitCount = 0;
@@ -2149,8 +2149,8 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
       });
     }
     
-    // 使用優化後的權重重新進行驗證（僅驗證最近幾期以加快速度）
-    const revalidationPeriods = Math.min(5, startIndex); // 重新驗證最近5期
+    // 使用優化後的權重重新進行驗證（增加訓練期數以提高準確性）
+    const revalidationPeriods = Math.min(100, startIndex); // 重新驗證最近100期
     const revalidationResults = [];
     
     for (let i = startIndex; i > startIndex - revalidationPeriods && i > 0; i--) {
