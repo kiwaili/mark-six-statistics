@@ -46,9 +46,10 @@ function extractAllNumbers(results) {
 /**
  * 計算號碼頻率分析
  * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @param {Set} excludePeriodNumbers - 可選，要排除的期數集合（期數字串）
  * @returns {Object} 號碼頻率統計
  */
-function calculateFrequency(allNumbers) {
+function calculateFrequency(allNumbers, excludePeriodNumbers = null) {
   const frequency = {};
   
   // 初始化所有可能的號碼 (1-49)
@@ -58,6 +59,11 @@ function calculateFrequency(allNumbers) {
   
   // 統計每個號碼出現的次數
   allNumbers.forEach(period => {
+    // 如果該期需要排除，跳過
+    if (excludePeriodNumbers && excludePeriodNumbers.has(period.periodNumber)) {
+      return;
+    }
+    
     period.numbers.forEach(num => {
       if (num >= 1 && num <= 49) {
         frequency[num] = (frequency[num] || 0) + 1;
@@ -71,9 +77,10 @@ function calculateFrequency(allNumbers) {
 /**
  * 計算加權頻率（近期出現的號碼權重更高）
  * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @param {Set} excludePeriodNumbers - 可選，要排除的期數集合（期數字串）
  * @returns {Object} 加權頻率統計
  */
-function calculateWeightedFrequency(allNumbers) {
+function calculateWeightedFrequency(allNumbers, excludePeriodNumbers = null) {
   const weightedFrequency = {};
   
   // 初始化所有可能的號碼 (1-49)
@@ -81,11 +88,16 @@ function calculateWeightedFrequency(allNumbers) {
     weightedFrequency[i] = 0;
   }
   
-  // 計算總期數
-  const totalPeriods = allNumbers.length;
+  // 過濾掉需要排除的期數
+  const filteredNumbers = excludePeriodNumbers 
+    ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+    : allNumbers;
+  
+  // 計算總期數（使用過濾後的期數）
+  const totalPeriods = filteredNumbers.length;
   
   // 對每期號碼進行加權計算（越近期的權重越高）
-  allNumbers.forEach((period, index) => {
+  filteredNumbers.forEach((period, index) => {
     // 使用指數衰減：越近期的期數權重越高
     // 最新一期權重為 1.0，每往前一期權重減少 5%
     const weight = Math.pow(0.95, totalPeriods - index - 1);
@@ -103,9 +115,10 @@ function calculateWeightedFrequency(allNumbers) {
 /**
  * 計算號碼間隔分析（多久沒出現）
  * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @param {Set} excludePeriodNumbers - 可選，要排除的期數集合（期數字串）
  * @returns {Object} 號碼間隔統計
  */
-function calculateGapAnalysis(allNumbers) {
+function calculateGapAnalysis(allNumbers, excludePeriodNumbers = null) {
   const lastAppearance = {};
   const gapScore = {};
   
@@ -115,8 +128,13 @@ function calculateGapAnalysis(allNumbers) {
     gapScore[i] = 0;
   }
   
-  // 從最新到最舊遍歷（因為 allNumbers 已經按日期排序，最新的在前）
-  allNumbers.forEach((period, index) => {
+  // 過濾掉需要排除的期數
+  const filteredNumbers = excludePeriodNumbers 
+    ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+    : allNumbers;
+  
+  // 從最新到最舊遍歷（因為 filteredNumbers 已經按日期排序，最新的在前）
+  filteredNumbers.forEach((period, index) => {
     period.numbers.forEach(num => {
       if (num >= 1 && num <= 49) {
         // 如果這個號碼還沒記錄過最後出現位置，記錄它
@@ -130,7 +148,7 @@ function calculateGapAnalysis(allNumbers) {
   // 計算間隔分數（間隔越長，分數越高，表示"該出現了"）
   Object.keys(lastAppearance).forEach(num => {
     const numInt = parseInt(num, 10);
-    const gap = lastAppearance[num] === -1 ? allNumbers.length : lastAppearance[num];
+    const gap = lastAppearance[num] === -1 ? filteredNumbers.length : lastAppearance[num];
     // 使用對數函數，讓間隔分數更平滑
     gapScore[numInt] = Math.log(gap + 1) * 10;
   });
@@ -141,9 +159,10 @@ function calculateGapAnalysis(allNumbers) {
 /**
  * 計算號碼出現模式（連續出現、交替出現等）
  * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @param {Set} excludePeriodNumbers - 可選，要排除的期數集合（期數字串）
  * @returns {Object} 模式分數
  */
-function calculatePatternScore(allNumbers) {
+function calculatePatternScore(allNumbers, excludePeriodNumbers = null) {
   const patternScore = {};
   
   // 初始化所有可能的號碼 (1-49)
@@ -151,11 +170,16 @@ function calculatePatternScore(allNumbers) {
     patternScore[i] = 0;
   }
   
+  // 過濾掉需要排除的期數
+  const filteredNumbers = excludePeriodNumbers 
+    ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+    : allNumbers;
+  
   // 檢查最近幾期的出現模式
-  const recentPeriods = Math.min(10, allNumbers.length);
+  const recentPeriods = Math.min(10, filteredNumbers.length);
   
   for (let i = 0; i < recentPeriods; i++) {
-    const period = allNumbers[i];
+    const period = filteredNumbers[i];
     const weight = 1 / (i + 1); // 越近期的權重越高
     
     period.numbers.forEach(num => {
@@ -225,9 +249,10 @@ function calculateDistributionFeatures(allNumbers) {
 /**
  * 計算每個號碼的統計分布分數（基於正態分布假設）
  * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @param {Set} excludePeriodNumbers - 可選，要排除的期數集合（期數字串）
  * @returns {Object} 分布分數
  */
-function calculateDistributionScore(allNumbers) {
+function calculateDistributionScore(allNumbers, excludePeriodNumbers = null) {
   const distributionScore = {};
   const features = calculateDistributionFeatures(allNumbers);
   
@@ -243,8 +268,12 @@ function calculateDistributionScore(allNumbers) {
   
   // 計算每個號碼在分布中的位置分數
   // 使用正態分布的Z分數，但考慮實際頻率
-  const frequency = calculateFrequency(allNumbers);
-  const totalPeriods = allNumbers.length;
+  const frequency = calculateFrequency(allNumbers, excludePeriodNumbers);
+  // 計算實際使用的期數（排除後的期數）
+  const filteredNumbers = excludePeriodNumbers 
+    ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+    : allNumbers;
+  const totalPeriods = filteredNumbers.length;
   const expectedFrequency = totalPeriods * 6 / 49; // 每期6個號碼，共49個號碼
   
   for (let i = 1; i <= 49; i++) {
@@ -269,9 +298,10 @@ function calculateDistributionScore(allNumbers) {
 /**
  * 計算趨勢分析（線性回歸、移動平均）
  * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @param {Set} excludePeriodNumbers - 可選，要排除的期數集合（期數字串）
  * @returns {Object} 趨勢分析結果
  */
-function calculateTrendAnalysis(allNumbers) {
+function calculateTrendAnalysis(allNumbers, excludePeriodNumbers = null) {
   const trendScore = {};
   
   // 初始化所有可能的號碼 (1-49)
@@ -279,18 +309,23 @@ function calculateTrendAnalysis(allNumbers) {
     trendScore[i] = 0;
   }
   
-  if (allNumbers.length < 3) {
+  // 過濾掉需要排除的期數
+  const filteredNumbers = excludePeriodNumbers 
+    ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+    : allNumbers;
+  
+  if (filteredNumbers.length < 3) {
     return trendScore;
   }
   
   // 計算每個號碼的出現趨勢（最近N期的移動平均）
-  const windowSize = Math.min(10, Math.floor(allNumbers.length / 2));
+  const windowSize = Math.min(10, Math.floor(filteredNumbers.length / 2));
   
   for (let num = 1; num <= 49; num++) {
     // 記錄每期該號碼是否出現（1或0）
     const appearances = [];
-    for (let i = 0; i < allNumbers.length; i++) {
-      const period = allNumbers[i];
+    for (let i = 0; i < filteredNumbers.length; i++) {
+      const period = filteredNumbers[i];
       appearances.push(period.numbers.includes(num) ? 1 : 0);
     }
     
@@ -345,9 +380,10 @@ function calculateTrendAnalysis(allNumbers) {
 /**
  * 計算卡方檢驗分數（檢驗號碼分布是否均勻）
  * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @param {Set} excludePeriodNumbers - 可選，要排除的期數集合（期數字串）
  * @returns {Object} 卡方分數
  */
-function calculateChiSquareScore(allNumbers) {
+function calculateChiSquareScore(allNumbers, excludePeriodNumbers = null) {
   const chiSquareScore = {};
   
   // 初始化所有可能的號碼 (1-49)
@@ -355,8 +391,12 @@ function calculateChiSquareScore(allNumbers) {
     chiSquareScore[i] = 0;
   }
   
-  const frequency = calculateFrequency(allNumbers);
-  const totalPeriods = allNumbers.length;
+  const frequency = calculateFrequency(allNumbers, excludePeriodNumbers);
+  // 計算實際使用的期數（排除後的期數）
+  const filteredNumbers = excludePeriodNumbers 
+    ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+    : allNumbers;
+  const totalPeriods = filteredNumbers.length;
   const totalNumbers = totalPeriods * 6; // 每期6個號碼
   const expectedFrequency = totalNumbers / 49; // 期望頻率
   
@@ -388,9 +428,10 @@ function calculateChiSquareScore(allNumbers) {
 /**
  * 計算泊松分布分數（檢驗號碼出現是否符合泊松分布）
  * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @param {Set} excludePeriodNumbers - 可選，要排除的期數集合（期數字串）
  * @returns {Object} 泊松分布分數
  */
-function calculatePoissonScore(allNumbers) {
+function calculatePoissonScore(allNumbers, excludePeriodNumbers = null) {
   const poissonScore = {};
   
   // 初始化所有可能的號碼 (1-49)
@@ -398,8 +439,12 @@ function calculatePoissonScore(allNumbers) {
     poissonScore[i] = 0;
   }
   
-  const frequency = calculateFrequency(allNumbers);
-  const totalPeriods = allNumbers.length;
+  const frequency = calculateFrequency(allNumbers, excludePeriodNumbers);
+  // 計算實際使用的期數（排除後的期數）
+  const filteredNumbers = excludePeriodNumbers 
+    ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+    : allNumbers;
+  const totalPeriods = filteredNumbers.length;
   const lambda = 6 * totalPeriods / 49; // 泊松參數（每期6個號碼，共49個號碼）
   
   // 計算泊松分布概率
@@ -443,9 +488,10 @@ function calculatePoissonScore(allNumbers) {
  * 分析並預測最有可能在下一期被抽中的號碼
  * @param {Array} results - 攪珠結果陣列
  * @param {Object} weights - 可選的權重參數 { frequency, weightedFrequency, gap, pattern }
+ * @param {Set} excludePeriodNumbers - 可選，要排除的期數集合（期數字串），用於迭代驗證
  * @returns {Object} 分析結果
  */
-function analyzeNumbers(results, weights = {}) {
+function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
   if (!results || results.length === 0) {
     throw new Error('沒有資料可供分析');
   }
@@ -457,18 +503,18 @@ function analyzeNumbers(results, weights = {}) {
     throw new Error('無法從結果中提取號碼');
   }
 
-  // 計算各種統計指標
-  const frequency = calculateFrequency(allNumbers);
-  const weightedFrequency = calculateWeightedFrequency(allNumbers);
-  const gapScore = calculateGapAnalysis(allNumbers);
-  const patternScore = calculatePatternScore(allNumbers);
+  // 計算各種統計指標（傳入排除期數）
+  const frequency = calculateFrequency(allNumbers, excludePeriodNumbers);
+  const weightedFrequency = calculateWeightedFrequency(allNumbers, excludePeriodNumbers);
+  const gapScore = calculateGapAnalysis(allNumbers, excludePeriodNumbers);
+  const patternScore = calculatePatternScore(allNumbers, excludePeriodNumbers);
   
-  // 計算統計分布分析
+  // 計算統計分布分析（傳入排除期數）
   const distributionFeatures = calculateDistributionFeatures(allNumbers);
-  const distributionScore = calculateDistributionScore(allNumbers);
-  const trendScore = calculateTrendAnalysis(allNumbers);
-  const chiSquareResult = calculateChiSquareScore(allNumbers);
-  const poissonResult = calculatePoissonScore(allNumbers);
+  const distributionScore = calculateDistributionScore(allNumbers, excludePeriodNumbers);
+  const trendScore = calculateTrendAnalysis(allNumbers, excludePeriodNumbers);
+  const chiSquareResult = calculateChiSquareScore(allNumbers, excludePeriodNumbers);
+  const poissonResult = calculatePoissonScore(allNumbers, excludePeriodNumbers);
 
   // 正規化各項分數到 0-100 範圍
   const normalize = (scores) => {
@@ -1694,7 +1740,13 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
       }
       
       try {
-        const analysis = analyzeNumbers(trainingData, testWeights);
+        // 計算需要排除的期數：目標期之後的所有期數（更近期的期數）
+        const excludePeriodNumbers = new Set();
+        for (let j = 0; j < i - 1; j++) {
+          excludePeriodNumbers.add(allResults[j].periodNumber);
+        }
+        
+        const analysis = analyzeNumbers(trainingData, testWeights, excludePeriodNumbers);
         const actualNumbers = extractAllNumbers([targetResult])[0]?.numbers || [];
         
         if (actualNumbers.length === 0) continue;
@@ -1763,8 +1815,15 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
     }
     
     try {
-      // 使用當前權重進行分析
-      const analysis = analyzeNumbers(trainingData, currentWeights);
+      // 計算需要排除的期數：目標期之後的所有期數（更近期的期數）
+      // 即從索引 0 到 i-2 的所有期數
+      const excludePeriodNumbers = new Set();
+      for (let j = 0; j < i - 1; j++) {
+        excludePeriodNumbers.add(allResults[j].periodNumber);
+      }
+      
+      // 使用當前權重進行分析，並排除目標期之後的期數
+      const analysis = analyzeNumbers(trainingData, currentWeights, excludePeriodNumbers);
       
       // 提取實際號碼
       const actualNumbers = extractAllNumbers([targetResult])[0]?.numbers || [];
@@ -1877,8 +1936,9 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
     // 使用所有歷史數據作為訓練數據
     const trainingDataForLatest = allResults;
     
+    // 對於最新一期，不需要排除任何期數（因為它是最新的）
     // 使用最終權重進行分析
-    const latestAnalysis = analyzeNumbers(trainingDataForLatest, currentWeights);
+    const latestAnalysis = analyzeNumbers(trainingDataForLatest, currentWeights, null);
     
     // 使用歷史驗證結果來優化選擇
     const previousResults = validationResults.slice(-15);
