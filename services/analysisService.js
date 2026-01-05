@@ -2231,7 +2231,7 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
           actualNumbers
         );
         
-        } catch (error) {
+      } catch (error) {
         console.error(`優化驗證期數 ${targetResult?.periodNumber || 'unknown'} 時發生錯誤:`, error.message);
         continue;
       }
