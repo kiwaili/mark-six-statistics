@@ -524,8 +524,12 @@ function scoreGapPatterns(gaps, fibonacciSequence) {
   gaps.forEach(gap => {
     fibonacciSequence.forEach(fib => {
       const diff = Math.abs(gap - fib);
-      if (diff <= 2) { // 允許2期的誤差
-        const matchScore = (3 - diff) * 15;
+      // 使用基於百分比的容差：允許20%的誤差，但至少1期
+      const tolerance = Math.max(1, Math.ceil(fib * 0.2));
+      if (diff <= tolerance) {
+        // 分數根據相對誤差計算：完全匹配得分最高，誤差越大分數越低
+        const relativeError = diff / (fib + 1); // 避免除以0
+        const matchScore = Math.round((1 - relativeError) * 15);
         score += matchScore;
         gapMatches++;
         if (diff === 0) {
@@ -564,9 +568,14 @@ function scoreGoldenRatioAnalysis(appearances, gaps, currentGap, filteredLength,
     // 黃金比例預測
     const predictedNextGap = Math.round(lastGap * goldenRatio);
     const diff1 = Math.abs(currentGap - predictedNextGap);
-    if (diff1 <= 3) {
-      score += 35 - diff1 * 5; // 越接近分數越高
-      if (diff1 <= 1) {
+    // 使用基於百分比的容差：允許20%的誤差，但至少1期
+    const tolerance1 = Math.max(1, Math.ceil(predictedNextGap * 0.2));
+    if (diff1 <= tolerance1) {
+      // 分數根據相對誤差計算：越接近分數越高
+      const relativeError = diff1 / (predictedNextGap + 1); // 避免除以0
+      const matchScore = Math.round((1 - relativeError) * 35);
+      score += matchScore;
+      if (diff1 <= Math.max(1, Math.ceil(predictedNextGap * 0.05))) { // 5%以內視為強信號
         strongSignals++;
       }
     }
@@ -574,9 +583,14 @@ function scoreGoldenRatioAnalysis(appearances, gaps, currentGap, filteredLength,
     // 反向黃金比例
     const predictedNextGapInverse = Math.round(lastGap * goldenRatioInverse);
     const diff2 = Math.abs(currentGap - predictedNextGapInverse);
-    if (diff2 <= 3) {
-      score += 25 - diff2 * 5;
-      if (diff2 <= 1) {
+    // 使用基於百分比的容差：允許20%的誤差，但至少1期
+    const tolerance2 = Math.max(1, Math.ceil(predictedNextGapInverse * 0.2));
+    if (diff2 <= tolerance2) {
+      // 分數根據相對誤差計算：越接近分數越高
+      const relativeError = diff2 / (predictedNextGapInverse + 1); // 避免除以0
+      const matchScore = Math.round((1 - relativeError) * 25);
+      score += matchScore;
+      if (diff2 <= Math.max(1, Math.ceil(predictedNextGapInverse * 0.05))) { // 5%以內視為強信號
         strongSignals++;
       }
     }
@@ -663,8 +677,13 @@ function scorePeriodicityAnalysis(num, appearances, gaps, gapSinceLast, filtered
     let periodMatches = 0;
     fibonacciSequence.forEach(fib => {
       const diff = Math.abs(gapSinceLast - fib);
-      if (diff <= 2) {
-        score += (3 - diff) * 20; // 大幅增加分數
+      // 使用基於百分比的容差：允許20%的誤差，但至少1期
+      const tolerance = Math.max(1, Math.ceil(fib * 0.2));
+      if (diff <= tolerance) {
+        // 分數根據相對誤差計算：完全匹配得分最高
+        const relativeError = diff / (fib + 1); // 避免除以0
+        const matchScore = Math.round((1 - relativeError) * 20);
+        score += matchScore;
         periodMatches++;
         if (diff === 0) {
           strongSignals++;
@@ -682,7 +701,10 @@ function scorePeriodicityAnalysis(num, appearances, gaps, gapSinceLast, filtered
     if (appearances.length >= 2 && gaps.length > 0) {
       const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length;
       const predictedGap = Math.round(avgGap * goldenRatio);
-      if (Math.abs(gapSinceLast - predictedGap) <= 2) {
+      // 使用基於百分比的容差：允許20%的誤差，但至少1期
+      const tolerance = Math.max(1, Math.ceil(predictedGap * 0.2));
+      const diff = Math.abs(gapSinceLast - predictedGap);
+      if (diff <= tolerance) {
         score += 25;
         strongSignals++;
       }
@@ -699,6 +721,7 @@ function scorePeriodicityAnalysis(num, appearances, gaps, gapSinceLast, filtered
 
 /**
  * 計算黃金比例位置預測的分數
+ * 基於號碼在歷史結果中的平均號碼值，使用黃金比例預測下一個可能的號碼值
  * @param {number} num - 號碼
  * @param {Array} filtered - 過濾後的期數陣列
  * @param {number} goldenRatio - 黃金比例
@@ -707,28 +730,44 @@ function scorePeriodicityAnalysis(num, appearances, gaps, gapSinceLast, filtered
  */
 function scoreGoldenRatioPositionPrediction(num, filtered, goldenRatio, goldenRatioInverse) {
   let score = 0;
-  const positions = [];
+  const numberValues = []; // 收集號碼在歷史中出現時的所有號碼值
   
   filtered.forEach(period => {
     if (period.numbers.includes(num)) {
-      const sorted = [...period.numbers].sort((a, b) => a - b);
-      positions.push(sorted.indexOf(num) + 1); // 位置從1開始
+      // 收集該期所有號碼值，用於計算平均號碼值
+      numberValues.push(...period.numbers);
     }
   });
   
-  if (positions.length > 0) {
-    const avgPosition = positions.reduce((a, b) => a + b, 0) / positions.length;
-    const predictedPosition = Math.round(avgPosition * goldenRatio);
+  if (numberValues.length > 0) {
+    // 計算歷史中號碼出現時的平均號碼值
+    const avgNumberValue = numberValues.reduce((a, b) => a + b, 0) / numberValues.length;
     
-    // 檢查當前號碼是否在預測位置附近
-    const positionInRange = num >= Math.round(avgPosition * goldenRatioInverse * 10) && 
-                            num <= Math.round(avgPosition * goldenRatio * 10);
-    if (positionInRange) {
-      score += 15;
+    // 使用黃金比例預測下一個可能的號碼值
+    // 預測值可能在 avgNumberValue * goldenRatio 或 avgNumberValue * goldenRatioInverse 附近
+    // 但需要限制在1-49範圍內
+    const predictedValue1 = Math.min(49, Math.max(1, Math.round(avgNumberValue * goldenRatio)));
+    const predictedValue2 = Math.min(49, Math.max(1, Math.round(avgNumberValue * goldenRatioInverse)));
+    
+    // 檢查當前號碼是否接近預測值（允許5個號碼的誤差）
+    const diff1 = Math.abs(num - predictedValue1);
+    const diff2 = Math.abs(num - predictedValue2);
+    
+    if (diff1 <= 5) {
+      // 越接近預測值，分數越高
+      score += 15 - diff1 * 2;
+    }
+    if (diff2 <= 5) {
+      score += 15 - diff2 * 2;
+    }
+    
+    // 如果同時接近兩個預測值，給予額外加分
+    if (diff1 <= 5 && diff2 <= 5) {
+      score += 5;
     }
   }
   
-  return score;
+  return Math.max(0, score); // 確保分數不為負
 }
 
 /**
