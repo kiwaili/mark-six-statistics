@@ -116,6 +116,32 @@
             padding: 20px;
             color: #667eea;
             font-size: 18px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 18px;
+            font-weight: 600;
+            color: #667eea;
         }
 
         .error {
@@ -398,7 +424,8 @@
         </div>
 
         <div id="loading" class="loading" style="display: none;">
-            正在取得資料...
+            <div class="spinner"></div>
+            <div class="loading-text" id="loadingText">正在處理中...</div>
         </div>
 
         <div id="error" class="error" style="display: none;"></div>
@@ -440,7 +467,8 @@
 
             // 重置狀態
             button.disabled = true;
-            loading.style.display = 'block';
+            loading.style.display = 'flex';
+            document.getElementById('loadingText').textContent = '正在取得資料...';
             error.style.display = 'none';
             resultsContainer.innerHTML = '';
             // Hide analysis, validation and prediction buttons when fetching new data
@@ -574,6 +602,7 @@
                 error.style.display = 'block';
             } finally {
                 analysisButton.disabled = false;
+                loading.style.display = 'none';
             }
         }
         
@@ -703,8 +732,8 @@
             // 重置狀態
             validateButton.disabled = true;
             error.style.display = 'none';
-            loading.style.display = 'block';
-            loading.textContent = '正在進行迭代驗證...';
+            loading.style.display = 'flex';
+            document.getElementById('loadingText').textContent = '正在進行迭代驗證...（這可能需要一些時間）';
             
             try {
                 const response = await fetch('/api/lottery/validate', {
@@ -952,8 +981,8 @@
             // 重置狀態
             predictButton.disabled = true;
             error.style.display = 'none';
-            loading.style.display = 'block';
-            loading.textContent = '正在分析並預測下一期號碼...';
+            loading.style.display = 'flex';
+            document.getElementById('loadingText').textContent = '正在分析並預測下一期號碼...';
             
             try {
                 // 使用所有歷史數據進行預測
