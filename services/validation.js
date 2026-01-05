@@ -793,12 +793,119 @@ function iterativeValidation(allResults, lookbackPeriods = 100) {
   // 注意：iterativeValidation 的完整實現非常長（包含優化循環）
   // 這裡只包含基本驗證邏輯，優化循環部分可以後續添加或簡化
   
+  // 生成未來一期的預測（使用最終權重和所有歷史數據）
+  let latestPeriodPrediction = null;
+  try {
+    // 使用所有歷史數據進行分析（不排除任何期數）
+    const allTrainingData = allResults;
+    const futureAnalysis = analyzeNumbers(allTrainingData, currentWeights, null);
+    
+    // 使用歷史驗證結果來優化選擇（如果有的話）
+    const historicalResults = validationResults.slice(-20); // 使用最近20期的驗證結果
+    
+    // 生成多個候選組合
+    const futureCandidateCombinations = generateMultipleCandidates(
+      futureAnalysis.topNumbers, 
+      6, 
+      historicalResults
+    );
+    
+    // 選擇最優的組合
+    let futurePredictedNumbers = null;
+    let futureStrategy = 'optimal';
+    
+    if (futureCandidateCombinations && futureCandidateCombinations.length > 0) {
+      // 如果有歷史數據，優先選擇歷史表現最好的策略
+      const strategyPerformance = {};
+      historicalResults.forEach(result => {
+        if (result.strategy) {
+          if (!strategyPerformance[result.strategy]) {
+            strategyPerformance[result.strategy] = { hits: 0, total: 0, atLeast3: 0 };
+          }
+          strategyPerformance[result.strategy].hits += result.comparison.hitCount;
+          strategyPerformance[result.strategy].total += 1;
+          if (result.comparison.hitCount >= 3) {
+            strategyPerformance[result.strategy].atLeast3 += 1;
+          }
+        }
+      });
+      
+      // 找到表現最好的策略
+      let bestStrategyName = null;
+      let bestStrategyScore = -1;
+      Object.keys(strategyPerformance).forEach(strategy => {
+        const perf = strategyPerformance[strategy];
+        if (perf.total > 0) {
+          const atLeast3Rate = perf.atLeast3 / perf.total;
+          const avgHitCount = perf.hits / perf.total;
+          const score = atLeast3Rate * 100 + avgHitCount * 20; // 至少3個命中率權重更高
+          if (score > bestStrategyScore) {
+            bestStrategyScore = score;
+            bestStrategyName = strategy;
+          }
+        }
+      });
+      
+      // 優先選擇歷史表現最好的策略的組合
+      if (bestStrategyName) {
+        const bestStrategyCombination = futureCandidateCombinations.find(
+          c => c.strategy === bestStrategyName
+        );
+        if (bestStrategyCombination && bestStrategyCombination.numbers) {
+          futurePredictedNumbers = bestStrategyCombination.numbers;
+          futureStrategy = bestStrategyName;
+        }
+      }
+      
+      // 如果沒有找到，使用智能選擇
+      if (!futurePredictedNumbers) {
+        futurePredictedNumbers = selectOptimalNumbers(
+          futureAnalysis.topNumbers, 
+          6, 
+          historicalResults
+        );
+        futureStrategy = 'optimal';
+      }
+    } else {
+      // 如果沒有候選組合，使用智能選擇策略
+      futurePredictedNumbers = selectOptimalNumbers(
+        futureAnalysis.topNumbers, 
+        6, 
+        historicalResults
+      );
+      futureStrategy = 'optimal';
+    }
+    
+    // 確保預測號碼有效
+    if (futurePredictedNumbers && futurePredictedNumbers.length > 0) {
+      latestPeriodPrediction = {
+        periodNumber: latestPeriod, // 基於最新期數預測下一期
+        predictedNumbers: futurePredictedNumbers.map(n => n.number || n).sort((a, b) => a - b),
+        strategy: futureStrategy,
+        topNumbers: futureAnalysis.topNumbers.slice(0, 10).map(n => ({
+          number: n.number,
+          score: n.score
+        })),
+        analysis: {
+          totalPeriods: futureAnalysis.stats.totalPeriods,
+          averageFrequency: futureAnalysis.stats.averageFrequency,
+          mostFrequent: futureAnalysis.stats.mostFrequent
+        },
+        weights: { ...currentWeights },
+        timestamp: new Date().toISOString()
+      };
+    }
+  } catch (error) {
+    console.error('生成未來一期預測時發生錯誤:', error);
+    // 即使出錯，也繼續返回其他結果
+  }
+  
   return {
     latestPeriod: latestPeriod,
     startPeriod: allResults[startIndex]?.periodNumber,
     totalValidations: totalValidations,
     validationResults: validationResults,
-    latestPeriodPrediction: null, // 需要完整實現
+    latestPeriodPrediction: latestPeriodPrediction,
     finalWeights: currentWeights,
     statistics: {
       totalHits: totalHits,
