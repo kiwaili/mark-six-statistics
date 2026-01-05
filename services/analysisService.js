@@ -610,7 +610,7 @@ function calculateFibonacciScore(allNumbers, excludePeriodNumbers = null, filter
         // 檢查間隔序列是否符合斐波那契比例
         if (gaps.length >= 2) {
           const lastTwoGaps = gaps.slice(-2);
-          const ratio = lastTwoGaps[1] / lastTwoGaps[0];
+          const ratio = lastTwoGaps[0] !== 0 ? lastTwoGaps[1] / lastTwoGaps[0] : 0;
           if (Math.abs(ratio - goldenRatio) < 0.3 || Math.abs(ratio - goldenRatioInverse) < 0.3) {
             score += 20;
             strongSignals++;
@@ -728,15 +728,15 @@ function calculateFibonacciScore(allNumbers, excludePeriodNumbers = null, filter
     
     // 8. 基於最近期數的斐波那契模式分析（新增）
     if (filtered.length >= 5) {
-      const recentPeriods = filtered.slice(-10); // 最近10期
+      const recentPeriods = filtered.slice(0, 10); // 最近10期（filtered已按日期排序，最新的在前）
       let recentMatches = 0;
       
       recentPeriods.forEach((period, idx) => {
         if (period.numbers.includes(num)) {
           // 檢查在最近期數中的出現是否符合斐波那契模式
-          const periodIndex = filtered.length - recentPeriods.length + idx;
+          const periodIndex = idx;
           fibonacciSequence.forEach(fib => {
-            if (periodIndex === filtered.length - fib || periodIndex === filtered.length - fib - 1) {
+            if (idx === fib - 1 || idx === fib) { // Check if appearance is at Fibonacci-indexed position
               recentMatches++;
             }
           });
@@ -1771,7 +1771,8 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
     distribution: 0,
     trend: 0,
     chiSquare: 0,
-    poisson: 0
+    poisson: 0,
+    fibonacci: 0
   };
   
   // 分析命中號碼在各指標中的排名
@@ -1823,6 +1824,7 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   let performanceTrend = 0;
   let performanceChiSquare = 0;
   let performancePoisson = 0;
+  let performanceFibonacci = 0;
   
   if (analysisDetails.distributionScore) {
     const sortedByDistribution = allNumbers.sort((a, b) => 
@@ -1860,6 +1862,15 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
     performancePoisson = (1 / hitRankPoisson) - (1 / missRankPoisson);
   }
   
+  if (analysisDetails.fibonacci && analysisDetails.fibonacci.scores) {
+    const sortedByFibonacci = allNumbers.sort((a, b) => 
+      analysisDetails.fibonacci.scores[b] - analysisDetails.fibonacci.scores[a]
+    );
+    const hitRankFibonacci = calculateAverageRank(hitNumbers, sortedByFibonacci);
+    const missRankFibonacci = calculateAverageRank(missNumbers, sortedByFibonacci);
+    performanceFibonacci = (1 / hitRankFibonacci) - (1 / missRankFibonacci);
+  }
+  
   // 計算總效能（用於正規化）
   const totalPerformance = Math.abs(performanceFrequency) + 
                           Math.abs(performanceWeightedFrequency) + 
@@ -1868,7 +1879,8 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
                           Math.abs(performanceDistribution) +
                           Math.abs(performanceTrend) +
                           Math.abs(performanceChiSquare) +
-                          Math.abs(performancePoisson);
+                          Math.abs(performancePoisson) +
+                          Math.abs(performanceFibonacci);
   
   // 根據準確率差距和指標表現調整權重
   // 動態學習率：準確率差距越大，學習率越高
@@ -1890,6 +1902,7 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   if (newWeights.trend === undefined) newWeights.trend = 0.10;
   if (newWeights.chiSquare === undefined) newWeights.chiSquare = 0.05;
   if (newWeights.poisson === undefined) newWeights.poisson = 0.05;
+  if (newWeights.fibonacci === undefined) newWeights.fibonacci = 0.20;
   
   if (totalPerformance > 0) {
     // 優先處理命中數不足的情況（命中數至少3是硬性要求）
@@ -1923,6 +1936,9 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
       if (performancePoisson > 0 && analysisDetails.poisson) {
         newWeights.poisson += learningRate * adjustmentFactor * criticalMultiplier * (performancePoisson / totalPerformance);
       }
+      if (performanceFibonacci > 0 && analysisDetails.fibonacci) {
+        newWeights.fibonacci += learningRate * adjustmentFactor * criticalMultiplier * (performanceFibonacci / totalPerformance);
+      }
       
       // 減少表現差的指標權重（命中數不足時更積極）
       const reductionMultiplier = isHitCountCritical ? 1.2 : 1.0;
@@ -1950,6 +1966,9 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
       if (performancePoisson < 0 && analysisDetails.poisson) {
         newWeights.poisson = Math.max(0.05, newWeights.poisson - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performancePoisson) / totalPerformance));
       }
+      if (performanceFibonacci < 0 && analysisDetails.fibonacci) {
+        newWeights.fibonacci = Math.max(0.05, newWeights.fibonacci - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performanceFibonacci) / totalPerformance));
+      }
     } else {
       // 如果準確率已達標，微調以保持或進一步提升至更高準確率
       // 即使已達標，也要繼續優化以提高準確率
@@ -1962,7 +1981,8 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
         { name: 'distribution', value: performanceDistribution, available: !!analysisDetails.distributionScore },
         { name: 'trend', value: performanceTrend, available: !!analysisDetails.trendScore },
         { name: 'chiSquare', value: performanceChiSquare, available: !!analysisDetails.chiSquare },
-        { name: 'poisson', value: performancePoisson, available: !!analysisDetails.poisson }
+        { name: 'poisson', value: performancePoisson, available: !!analysisDetails.poisson },
+        { name: 'fibonacci', value: performanceFibonacci, available: !!analysisDetails.fibonacci }
       ].filter(p => p.available !== false);
       
       // 選擇表現最好的前2個指標，給予更多權重
@@ -1978,16 +1998,17 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   } else {
     // 如果無法計算效能，使用啟發式調整（優化準確率）
     if (comparison.hitCount === 0) {
-      // 完全沒命中，大幅增加趨勢、分布和間隔權重（這些指標對提高準確率更有效）
+      // 完全沒命中，大幅增加趨勢、分布、間隔和斐波那契權重（這些指標對提高準確率更有效）
       newWeights.gap = Math.min(0.45, (newWeights.gap || 0.18) + 0.08);
       newWeights.trend = Math.min(0.25, (newWeights.trend || 0.15) + 0.05);
       newWeights.distribution = Math.min(0.28, (newWeights.distribution || 0.18) + 0.05);
       newWeights.pattern = Math.min(0.25, (newWeights.pattern || 0.10) + 0.03);
+      newWeights.fibonacci = Math.min(0.35, (newWeights.fibonacci || 0.20) + 0.05);
       newWeights.frequency = Math.max(0.05, (newWeights.frequency || 0.12) - 0.06);
       newWeights.weightedFrequency = Math.max(0.05, (newWeights.weightedFrequency || 0.18) - 0.05);
     } else if (comparison.hitCount < targetHitCount || currentAccuracy < targetAccuracy) {
       // 命中數少於目標或準確率低於目標，積極調整權重以提高準確率
-      // 優先增加趨勢、分布和間隔權重（這些指標對提高準確率更有效）
+      // 優先增加趨勢、分布、間隔和斐波那契權重（這些指標對提高準確率更有效）
       const hitCountDeficit = targetHitCount - comparison.hitCount;
       const accuracyDeficit = targetAccuracy - currentAccuracy;
       const adjustmentAmount = Math.max(hitCountDeficit * 0.10, accuracyDeficit * 0.15); // 更積極的調整幅度
@@ -1995,6 +2016,7 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
       newWeights.trend = Math.min(0.30, (newWeights.trend || 0.15) + adjustmentAmount * 0.9);
       newWeights.distribution = Math.min(0.30, (newWeights.distribution || 0.18) + adjustmentAmount * 0.8);
       newWeights.pattern = Math.min(0.35, (newWeights.pattern || 0.10) + adjustmentAmount * 0.7);
+      newWeights.fibonacci = Math.min(0.40, (newWeights.fibonacci || 0.20) + adjustmentAmount * 0.75);
       newWeights.weightedFrequency = Math.min(0.55, (newWeights.weightedFrequency || 0.18) + adjustmentAmount * 0.6);
       // 稍微減少頻率權重
       newWeights.frequency = Math.max(0.05, (newWeights.frequency || 0.12) - adjustmentAmount * 0.4);
@@ -2003,6 +2025,7 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
       // 增加表現最好的指標權重
       newWeights.trend = Math.min(0.30, (newWeights.trend || 0.15) + 0.02);
       newWeights.distribution = Math.min(0.30, (newWeights.distribution || 0.18) + 0.02);
+      newWeights.fibonacci = Math.min(0.40, (newWeights.fibonacci || 0.20) + 0.02);
     }
   }
   
@@ -2015,11 +2038,12 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   newWeights.trend = Math.max(0.05, Math.min(0.5, newWeights.trend || 0.1));
   newWeights.chiSquare = Math.max(0.05, Math.min(0.5, newWeights.chiSquare || 0.05));
   newWeights.poisson = Math.max(0.05, Math.min(0.5, newWeights.poisson || 0.05));
+  newWeights.fibonacci = Math.max(0.05, Math.min(0.5, newWeights.fibonacci || 0.20));
   
   // 正規化權重，確保總和為1
   const totalWeight = (newWeights.frequency || 0) + (newWeights.weightedFrequency || 0) + (newWeights.gap || 0) + 
                       (newWeights.pattern || 0) + (newWeights.distribution || 0) + (newWeights.trend || 0) + 
-                      (newWeights.chiSquare || 0) + (newWeights.poisson || 0);
+                      (newWeights.chiSquare || 0) + (newWeights.poisson || 0) + (newWeights.fibonacci || 0);
   if (totalWeight > 0) {
     Object.keys(newWeights).forEach(key => {
       newWeights[key] = newWeights[key] / totalWeight;
