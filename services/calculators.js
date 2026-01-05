@@ -459,6 +459,367 @@ function calculatePoissonScore(allNumbers, excludePeriodNumbers = null, filtered
   };
 }
 
+/**
+ * 計算相關性分析分數（分析號碼之間的相關性）
+ * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @param {Set} excludePeriodNumbers - 可選，要排除的期數集合（期數字串）
+ * @param {Array} filteredNumbers - 可選，預先過濾後的數組（性能優化，避免重複過濾）
+ * @returns {Object} 相關性分數
+ */
+function calculateCorrelationScore(allNumbers, excludePeriodNumbers = null, filteredNumbers = null) {
+  const correlationScore = {};
+  
+  // 初始化所有可能的號碼 (1-49)
+  for (let i = 1; i <= 49; i++) {
+    correlationScore[i] = 0;
+  }
+  
+  // 使用預過濾的數組（如果提供），否則過濾
+  const filtered = filteredNumbers || (excludePeriodNumbers 
+    ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+    : allNumbers);
+  
+  if (filtered.length < 2) {
+    return { scores: correlationScore, correlations: {} };
+  }
+  
+  // 計算每個號碼的出現序列（每期是否出現：1或0）
+  const appearanceMatrix = {};
+  for (let i = 1; i <= 49; i++) {
+    appearanceMatrix[i] = [];
+  }
+  
+  filtered.forEach(period => {
+    for (let i = 1; i <= 49; i++) {
+      appearanceMatrix[i].push(period.numbers.includes(i) ? 1 : 0);
+    }
+  });
+  
+  // 計算皮爾遜相關係數
+  const calculatePearsonCorrelation = (x, y) => {
+    const n = x.length;
+    if (n === 0) return 0;
+    
+    const sumX = x.reduce((a, b) => a + b, 0);
+    const sumY = y.reduce((a, b) => a + b, 0);
+    const sumXY = x.reduce((sum, val, i) => sum + val * y[i], 0);
+    const sumX2 = x.reduce((sum, val) => sum + val * val, 0);
+    const sumY2 = y.reduce((sum, val) => sum + val * val, 0);
+    
+    const numerator = n * sumXY - sumX * sumY;
+    const denominator = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+    
+    if (denominator === 0) return 0;
+    return numerator / denominator;
+  };
+  
+  // 計算每個號碼與其他號碼的平均相關性
+  const correlations = {};
+  for (let i = 1; i <= 49; i++) {
+    let totalCorrelation = 0;
+    let count = 0;
+    
+    for (let j = 1; j <= 49; j++) {
+      if (i !== j) {
+        const corr = calculatePearsonCorrelation(appearanceMatrix[i], appearanceMatrix[j]);
+        totalCorrelation += Math.abs(corr); // 使用絕對值，因為正負相關都表示有關係
+        count++;
+        
+        // 記錄強相關性（|r| > 0.3）
+        if (Math.abs(corr) > 0.3) {
+          if (!correlations[i]) correlations[i] = [];
+          correlations[i].push({ number: j, correlation: Math.round(corr * 100) / 100 });
+        }
+      }
+    }
+    
+    // 平均相關性作為分數（相關性高的號碼可能更容易一起出現）
+    const avgCorrelation = count > 0 ? totalCorrelation / count : 0;
+    correlationScore[i] = Math.min(100, avgCorrelation * 200); // 放大並限制在100以內
+  }
+  
+  return {
+    scores: correlationScore,
+    correlations: correlations
+  };
+}
+
+/**
+ * 計算熵分析分數（評估號碼出現的不確定性）
+ * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @param {Set} excludePeriodNumbers - 可選，要排除的期數集合（期數字串）
+ * @param {Array} filteredNumbers - 可選，預先過濾後的數組（性能優化，避免重複過濾）
+ * @returns {Object} 熵分析分數
+ */
+function calculateEntropyScore(allNumbers, excludePeriodNumbers = null, filteredNumbers = null) {
+  const entropyScore = {};
+  
+  // 初始化所有可能的號碼 (1-49)
+  for (let i = 1; i <= 49; i++) {
+    entropyScore[i] = 0;
+  }
+  
+  const frequency = calculateFrequency(allNumbers, excludePeriodNumbers, filteredNumbers);
+  // 使用預過濾的數組（如果提供），否則過濾
+  const filtered = filteredNumbers || (excludePeriodNumbers 
+    ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+    : allNumbers);
+  const totalPeriods = filtered.length;
+  const totalNumbers = totalPeriods * 6; // 每期6個號碼
+  
+  // 計算整體熵（香農熵）
+  let overallEntropy = 0;
+  for (let i = 1; i <= 49; i++) {
+    const probability = frequency[i] / totalNumbers;
+    if (probability > 0) {
+      overallEntropy -= probability * Math.log2(probability);
+    }
+  }
+  
+  // 計算每個號碼的熵分數
+  // 如果號碼出現頻率接近期望值，熵較高（更隨機）
+  // 如果號碼出現頻率偏離期望值，熵較低（可能有模式）
+  const expectedProbability = 6 / 49; // 每個號碼每期出現的期望機率
+  
+  for (let i = 1; i <= 49; i++) {
+    const probability = frequency[i] / totalNumbers;
+    const deviation = Math.abs(probability - expectedProbability);
+    
+    // 如果偏差小（接近隨機），給予較高分數
+    // 如果偏差大（有模式），給予較低分數
+    // 但我們想要預測，所以給偏差大的號碼較高分數（表示可能有規律）
+    if (deviation > 0) {
+      // 使用對數函數平滑化
+      entropyScore[i] = Math.min(100, Math.log(deviation * 100 + 1) * 20);
+    } else {
+      entropyScore[i] = 50; // 完全隨機的情況
+    }
+  }
+  
+  return {
+    scores: entropyScore,
+    overallEntropy: Math.round(overallEntropy * 100) / 100,
+    maxEntropy: Math.log2(49) // 最大熵（完全均勻分布）
+  };
+}
+
+/**
+ * 計算馬可夫鏈分析分數（分析號碼之間的轉移機率）
+ * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @param {Set} excludePeriodNumbers - 可選，要排除的期數集合（期數字串）
+ * @param {Array} filteredNumbers - 可選，預先過濾後的數組（性能優化，避免重複過濾）
+ * @returns {Object} 馬可夫鏈分數
+ */
+function calculateMarkovChainScore(allNumbers, excludePeriodNumbers = null, filteredNumbers = null) {
+  const markovScore = {};
+  
+  // 初始化所有可能的號碼 (1-49)
+  for (let i = 1; i <= 49; i++) {
+    markovScore[i] = 0;
+  }
+  
+  // 使用預過濾的數組（如果提供），否則過濾
+  const filtered = filteredNumbers || (excludePeriodNumbers 
+    ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+    : allNumbers);
+  
+  if (filtered.length < 2) {
+    return { scores: markovScore, transitionMatrix: {} };
+  }
+  
+  // 建立轉移矩陣：從上一期的號碼轉移到下一期的號碼
+  const transitionCounts = {};
+  const fromCounts = {}; // 記錄每個號碼作為起點的次數
+  
+  // 初始化
+  for (let i = 1; i <= 49; i++) {
+    fromCounts[i] = 0;
+    transitionCounts[i] = {};
+    for (let j = 1; j <= 49; j++) {
+      transitionCounts[i][j] = 0;
+    }
+  }
+  
+  // 計算轉移次數
+  for (let t = 0; t < filtered.length - 1; t++) {
+    const currentPeriod = filtered[t];
+    const nextPeriod = filtered[t + 1];
+    
+    currentPeriod.numbers.forEach(fromNum => {
+      fromCounts[fromNum]++;
+      nextPeriod.numbers.forEach(toNum => {
+        transitionCounts[fromNum][toNum]++;
+      });
+    });
+  }
+  
+  // 計算轉移機率並生成分數
+  const transitionMatrix = {};
+  const latestPeriod = filtered[0]; // 最新一期
+  
+  // 基於最新一期的號碼，計算下一期各號碼出現的機率
+  latestPeriod.numbers.forEach(fromNum => {
+    if (!transitionMatrix[fromNum]) {
+      transitionMatrix[fromNum] = {};
+    }
+    
+    for (let toNum = 1; toNum <= 49; toNum++) {
+      const count = transitionCounts[fromNum][toNum];
+      const total = fromCounts[fromNum];
+      const probability = total > 0 ? count / total : 0;
+      
+      transitionMatrix[fromNum][toNum] = Math.round(probability * 1000) / 1000;
+      
+      // 累加分數：如果從最新期的號碼轉移到某號碼的機率高，給予高分
+      markovScore[toNum] += probability * 100;
+    }
+  });
+  
+  // 正規化分數
+  const maxScore = Math.max(...Object.values(markovScore));
+  if (maxScore > 0) {
+    for (let i = 1; i <= 49; i++) {
+      markovScore[i] = (markovScore[i] / maxScore) * 100;
+    }
+  }
+  
+  return {
+    scores: markovScore,
+    transitionMatrix: transitionMatrix
+  };
+}
+
+/**
+ * 計算組合數學分析分數（分析號碼組合的數學特性）
+ * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @param {Set} excludePeriodNumbers - 可選，要排除的期數集合（期數字串）
+ * @param {Array} filteredNumbers - 可選，預先過濾後的數組（性能優化，避免重複過濾）
+ * @returns {Object} 組合數學分數
+ */
+function calculateCombinatorialScore(allNumbers, excludePeriodNumbers = null, filteredNumbers = null) {
+  const combinatorialScore = {};
+  
+  // 初始化所有可能的號碼 (1-49)
+  for (let i = 1; i <= 49; i++) {
+    combinatorialScore[i] = 0;
+  }
+  
+  // 使用預過濾的數組（如果提供），否則過濾
+  const filtered = filteredNumbers || (excludePeriodNumbers 
+    ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+    : allNumbers);
+  
+  if (filtered.length === 0) {
+    return { scores: combinatorialScore, patterns: {} };
+  }
+  
+  // 分析歷史組合的數學特性
+  const sumFrequency = {}; // 號碼和的分佈
+  const diffFrequency = {}; // 號碼差的分佈
+  const productFrequency = {}; // 號碼積的分佈（簡化，只考慮小值）
+  const consecutivePairs = {}; // 連續號碼對的頻率
+  
+  filtered.forEach(period => {
+    const sorted = [...period.numbers].sort((a, b) => a - b);
+    
+    // 計算和、差、積
+    const sum = sorted.reduce((a, b) => a + b, 0);
+    sumFrequency[sum] = (sumFrequency[sum] || 0) + 1;
+    
+    // 計算相鄰號碼的差
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const diff = sorted[i + 1] - sorted[i];
+      diffFrequency[diff] = (diffFrequency[diff] || 0) + 1;
+      
+      // 記錄連續號碼對
+      if (diff === 1) {
+        const pair = `${sorted[i]}-${sorted[i + 1]}`;
+        consecutivePairs[pair] = (consecutivePairs[pair] || 0) + 1;
+      }
+    }
+  });
+  
+  // 計算平均和、平均差
+  const avgSum = Object.keys(sumFrequency).reduce((sum, key) => {
+    return sum + parseInt(key) * sumFrequency[key];
+  }, 0) / filtered.length;
+  
+  const totalDiffs = Object.values(diffFrequency).reduce((a, b) => a + b, 0);
+  const avgDiff = totalDiffs > 0 
+    ? Object.keys(diffFrequency).reduce((sum, key) => {
+        return sum + parseInt(key) * diffFrequency[key];
+      }, 0) / totalDiffs
+    : 0;
+  
+  // 分析最新一期的組合特性
+  const latestPeriod = filtered[0];
+  const latestSorted = [...latestPeriod.numbers].sort((a, b) => a - b);
+  const latestSum = latestSorted.reduce((a, b) => a + b, 0);
+  const latestAvg = latestSum / latestSorted.length;
+  
+  // 計算每個號碼的分數
+  for (let i = 1; i <= 49; i++) {
+    let score = 0;
+    
+    // 1. 如果加入該號碼後，總和接近歷史平均，給予加分
+    const potentialSum = latestSum + i;
+    const potentialAvg = potentialSum / 7; // 假設下一期有7個號碼（6個+這個）
+    const sumDeviation = Math.abs(potentialAvg - avgSum);
+    if (sumDeviation < 5) {
+      score += (5 - sumDeviation) * 10;
+    }
+    
+    // 2. 如果該號碼與最新期的號碼形成常見的差值，給予加分
+    latestSorted.forEach(num => {
+      const diff = Math.abs(i - num);
+      if (diffFrequency[diff] && diffFrequency[diff] > filtered.length * 0.1) {
+        score += 15;
+      }
+    });
+    
+    // 3. 如果該號碼與最新期的號碼形成連續對，給予加分
+    latestSorted.forEach(num => {
+      if (Math.abs(i - num) === 1) {
+        const pair = i < num ? `${i}-${num}` : `${num}-${i}`;
+        if (consecutivePairs[pair] && consecutivePairs[pair] > filtered.length * 0.05) {
+          score += 20;
+        }
+      }
+    });
+    
+    // 4. 如果該號碼在常見的和值範圍內，給予加分
+    const commonSums = Object.keys(sumFrequency)
+      .filter(key => sumFrequency[key] > filtered.length * 0.1)
+      .map(key => parseInt(key));
+    
+    if (commonSums.length > 0) {
+      const potentialSum = latestSum + i;
+      const closestCommonSum = commonSums.reduce((closest, sum) => {
+        return Math.abs(sum - potentialSum) < Math.abs(closest - potentialSum) ? sum : closest;
+      }, commonSums[0]);
+      
+      if (Math.abs(potentialSum - closestCommonSum) < 10) {
+        score += 10;
+      }
+    }
+    
+    combinatorialScore[i] = Math.min(100, score);
+  }
+  
+  return {
+    scores: combinatorialScore,
+    patterns: {
+      avgSum: Math.round(avgSum * 100) / 100,
+      avgDiff: Math.round(avgDiff * 100) / 100,
+      commonSums: Object.keys(sumFrequency)
+        .filter(key => sumFrequency[key] > filtered.length * 0.1)
+        .map(key => parseInt(key))
+        .sort((a, b) => sumFrequency[b] - sumFrequency[a])
+        .slice(0, 10)
+    }
+  };
+}
+
 module.exports = {
   calculateFrequency,
   calculateWeightedFrequency,
@@ -468,5 +829,9 @@ module.exports = {
   calculateDistributionScore,
   calculateTrendAnalysis,
   calculateChiSquareScore,
-  calculatePoissonScore
+  calculatePoissonScore,
+  calculateCorrelationScore,
+  calculateEntropyScore,
+  calculateMarkovChainScore,
+  calculateCombinatorialScore
 };
