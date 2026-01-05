@@ -2583,7 +2583,7 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
     // 正規化權重
     const totalWeight = (optimizedWeights.frequency || 0) + (optimizedWeights.weightedFrequency || 0) + (optimizedWeights.gap || 0) + 
                         (optimizedWeights.pattern || 0) + (optimizedWeights.distribution || 0) + (optimizedWeights.trend || 0) + 
-                        (optimizedWeights.chiSquare || 0) + (optimizedWeights.poisson || 0);
+                        (optimizedWeights.chiSquare || 0) + (optimizedWeights.poisson || 0) + (optimizedWeights.fibonacci || 0);
     if (totalWeight > 0) {
       Object.keys(optimizedWeights).forEach(key => {
         optimizedWeights[key] = optimizedWeights[key] / totalWeight;
