@@ -437,6 +437,47 @@
         // 儲存當前結果資料
         let currentResults = [];
 
+        /**
+         * 解析期數字串為年份和期數對象
+         * 支援格式：25/132 (年份/期數) 或 2025001 (年份+期數)
+         * @param {string} periodNumber - 期數字串
+         * @param {Object} options - 選項
+         * @param {boolean} options.convertYear - 是否將2位數年份轉換為4位數（默認false）
+         * @param {boolean} options.returnNull - 解析失敗時返回null而不是默認值（默認false）
+         * @returns {Object|null} {year: number, period: number} 或 null
+         */
+        function parsePeriodNumber(periodNumber, options = {}) {
+            const { convertYear = false, returnNull = false } = options;
+            
+            if (!periodNumber) {
+                return returnNull ? null : { year: 0, period: 0 };
+            }
+            
+            // 格式 25/132 (年份/期數)
+            const match1 = periodNumber.match(/^(\d{2})\/(\d+)$/);
+            if (match1) {
+                let year = parseInt(match1[1], 10);
+                const period = parseInt(match1[2], 10);
+                
+                // 如果需要轉換年份，將2位數年份轉換為4位數（假設25代表2025）
+                if (convertYear) {
+                    year = year < 50 ? 2000 + year : 1900 + year;
+                }
+                
+                return { year: year, period: period };
+            }
+            
+            // 格式 2025001 (年份+期數) 或 2025001 (年份+3位期數)
+            const match2 = periodNumber.match(/^(\d{4})(\d+)$/);
+            if (match2) {
+                const year = parseInt(match2[1], 10);
+                const period = parseInt(match2[2], 10);
+                return { year: year, period: period };
+            }
+            
+            return returnNull ? null : { year: 0, period: 0 };
+        }
+
         // 初始化年份選擇器，預設為今年
         document.addEventListener('DOMContentLoaded', function() {
             const currentYear = new Date().getFullYear();
@@ -568,6 +609,7 @@
             const analysisButton = document.getElementById('analysisButton');
             const error = document.getElementById('error');
             const resultsContainer = document.getElementById('resultsContainer');
+            const loading = document.getElementById('loading');
             
             if (currentResults.length === 0) {
                 error.textContent = '錯誤: 請先取得攪珠結果';
@@ -578,6 +620,8 @@
             // 重置狀態
             analysisButton.disabled = true;
             error.style.display = 'none';
+            loading.style.display = 'flex';
+            document.getElementById('loadingText').textContent = '正在分析號碼...';
             
             try {
                 const response = await fetch('/api/lottery/analyze', {
@@ -869,29 +913,9 @@
                             <tbody>
             `;
             
-            // 解析期數以便排序（支援格式：25/132 或 2025001）
+            // 使用共享的期數解析函數（用於排序，需要轉換年份）
             const parsePeriodForSort = (periodNumber) => {
-                if (!periodNumber) return { year: 0, period: 0 };
-                
-                // 格式 25/132 (年份/期數)
-                const match1 = periodNumber.match(/^(\d{2})\/(\d+)$/);
-                if (match1) {
-                    const year = parseInt(match1[1], 10);
-                    const period = parseInt(match1[2], 10);
-                    // 將2位數年份轉換為4位數（假設25代表2025）
-                    const fullYear = year < 50 ? 2000 + year : 1900 + year;
-                    return { year: fullYear, period: period };
-                }
-                
-                // 格式 2025001 (年份+期數)
-                const match2 = periodNumber.match(/^(\d{4})(\d+)$/);
-                if (match2) {
-                    const year = parseInt(match2[1], 10);
-                    const period = parseInt(match2[2], 10);
-                    return { year: year, period: period };
-                }
-                
-                return { year: 0, period: 0 };
+                return parsePeriodNumber(periodNumber, { convertYear: true });
             };
             
             // 比較兩個期數，用於排序（新至舊：較新的期數排在前面）
@@ -1019,17 +1043,9 @@
             // 獲取最新期數
             const latestPeriod = latestResult.periodNumber;
             
-            // 解析期數以計算下一期
+            // 使用共享的期數解析函數（用於計算下一期，不需要轉換年份，失敗時返回null）
             const parsePeriod = (periodStr) => {
-                const match1 = periodStr.match(/^(\d{2})\/(\d+)$/);
-                if (match1) {
-                    return { year: parseInt(match1[1], 10), period: parseInt(match1[2], 10) };
-                }
-                const match2 = periodStr.match(/^(\d{4})(\d{3})$/);
-                if (match2) {
-                    return { year: parseInt(match2[1], 10), period: parseInt(match2[2], 10) };
-                }
-                return null;
+                return parsePeriodNumber(periodStr, { convertYear: false, returnNull: true });
             };
             
             const currentPeriod = parsePeriod(latestPeriod);
