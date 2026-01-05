@@ -79,7 +79,9 @@ router.post('/validate', async (req, res) => {
       });
     }
     
-    const validation = analysisService.iterativeValidation(results, lookbackPeriods);
+    // 使用 Promise.resolve 包装同步函数调用，明确表示这是一个异步操作
+    // 注意：此函数仍然是同步执行，可能会阻塞事件循环长达数分钟
+    const validation = await Promise.resolve(analysisService.iterativeValidation(results, lookbackPeriods));
     
     res.json({
       success: true,

@@ -498,6 +498,395 @@ function calculatePoissonScore(allNumbers, excludePeriodNumbers = null, filtered
 }
 
 /**
+ * 計算號碼是否為斐波那契數的分數
+ * @param {number} num - 號碼
+ * @param {Set} fibonacciSet - 斐波那契數集合
+ * @returns {Object} { score, strongSignal }
+ */
+function scoreSequenceMembership(num, fibonacciSet) {
+  if (fibonacciSet.has(num)) {
+    return { score: 30, strongSignal: true };
+  }
+  return { score: 0, strongSignal: false };
+}
+
+/**
+ * 計算間隔模式的分數（檢查間隔是否接近斐波那契數）
+ * @param {Array} gaps - 間隔陣列
+ * @param {Array} fibonacciSequence - 斐波那契數列
+ * @returns {Object} { score, strongSignals }
+ */
+function scoreGapPatterns(gaps, fibonacciSequence) {
+  let score = 0;
+  let strongSignals = 0;
+  let gapMatches = 0;
+  
+  gaps.forEach(gap => {
+    fibonacciSequence.forEach(fib => {
+      const diff = Math.abs(gap - fib);
+      // 使用基於百分比的容差：允許20%的誤差，但至少1期
+      const tolerance = Math.max(1, Math.ceil(fib * 0.2));
+      if (diff <= tolerance) {
+        // 分數根據相對誤差計算：完全匹配得分最高，誤差越大分數越低
+        const relativeError = diff / (fib + 1); // 避免除以0
+        const matchScore = Math.round((1 - relativeError) * 15);
+        score += matchScore;
+        gapMatches++;
+        if (diff === 0) {
+          strongSignals++; // 完全匹配是強信號
+        }
+      }
+    });
+  });
+  
+  // 如果有多個間隔匹配，給予額外加分
+  if (gapMatches >= 2) {
+    score += 25;
+    strongSignals++;
+  }
+  
+  return { score, strongSignals };
+}
+
+/**
+ * 計算黃金比例分析的分數
+ * @param {Array} appearances - 出現位置陣列
+ * @param {Array} gaps - 間隔陣列
+ * @param {number} currentGap - 當前間隔
+ * @param {number} filteredLength - 過濾後的期數長度
+ * @param {number} goldenRatio - 黃金比例
+ * @param {number} goldenRatioInverse - 反向黃金比例
+ * @returns {Object} { score, strongSignals }
+ */
+function scoreGoldenRatioAnalysis(appearances, gaps, currentGap, filteredLength, goldenRatio, goldenRatioInverse) {
+  let score = 0;
+  let strongSignals = 0;
+  
+  if (appearances.length >= 2 && gaps.length > 0) {
+    const lastGap = gaps[gaps.length - 1];
+    
+    // 黃金比例預測
+    const predictedNextGap = Math.round(lastGap * goldenRatio);
+    const diff1 = Math.abs(currentGap - predictedNextGap);
+    // 使用基於百分比的容差：允許20%的誤差，但至少1期
+    const tolerance1 = Math.max(1, Math.ceil(predictedNextGap * 0.2));
+    if (diff1 <= tolerance1) {
+      // 分數根據相對誤差計算：越接近分數越高
+      const relativeError = diff1 / (predictedNextGap + 1); // 避免除以0
+      const matchScore = Math.round((1 - relativeError) * 35);
+      score += matchScore;
+      if (diff1 <= Math.max(1, Math.ceil(predictedNextGap * 0.05))) { // 5%以內視為強信號
+        strongSignals++;
+      }
+    }
+    
+    // 反向黃金比例
+    const predictedNextGapInverse = Math.round(lastGap * goldenRatioInverse);
+    const diff2 = Math.abs(currentGap - predictedNextGapInverse);
+    // 使用基於百分比的容差：允許20%的誤差，但至少1期
+    const tolerance2 = Math.max(1, Math.ceil(predictedNextGapInverse * 0.2));
+    if (diff2 <= tolerance2) {
+      // 分數根據相對誤差計算：越接近分數越高
+      const relativeError = diff2 / (predictedNextGapInverse + 1); // 避免除以0
+      const matchScore = Math.round((1 - relativeError) * 25);
+      score += matchScore;
+      if (diff2 <= Math.max(1, Math.ceil(predictedNextGapInverse * 0.05))) { // 5%以內視為強信號
+        strongSignals++;
+      }
+    }
+    
+    // 檢查間隔序列是否符合斐波那契比例
+    if (gaps.length >= 2) {
+      const lastTwoGaps = gaps.slice(-2);
+      const ratio = lastTwoGaps[0] !== 0 ? lastTwoGaps[1] / lastTwoGaps[0] : 0;
+      if (Math.abs(ratio - goldenRatio) < 0.3 || Math.abs(ratio - goldenRatioInverse) < 0.3) {
+        score += 20;
+        strongSignals++;
+      }
+    }
+  }
+  
+  return { score, strongSignals };
+}
+
+/**
+ * 計算位置關係的分數（檢查號碼在歷史結果中的位置關係）
+ * @param {number} num - 號碼
+ * @param {Array} filtered - 過濾後的期數陣列
+ * @param {Set} fibonacciSet - 斐波那契數集合
+ * @returns {Object} { score, strongSignals }
+ */
+function scorePositionRelationships(num, filtered, fibonacciSet) {
+  let score = 0;
+  let strongSignals = 0;
+  let positionMatches = 0;
+  
+  filtered.forEach(period => {
+    const sortedNumbers = [...period.numbers].sort((a, b) => a - b);
+    const numIndex = sortedNumbers.indexOf(num);
+    
+    if (numIndex !== -1) {
+      // 檢查相鄰號碼的差值是否為斐波那契數
+      if (numIndex > 0) {
+        const diff = num - sortedNumbers[numIndex - 1];
+        if (fibonacciSet.has(diff)) {
+          score += 15;
+          positionMatches++;
+        }
+      }
+      if (numIndex < sortedNumbers.length - 1) {
+        const diff = sortedNumbers[numIndex + 1] - num;
+        if (fibonacciSet.has(diff)) {
+          score += 15;
+          positionMatches++;
+        }
+      }
+      
+      // 檢查號碼在排序後的位置是否為斐波那契數
+      if (fibonacciSet.has(numIndex + 1)) {
+        score += 12;
+      }
+    }
+  });
+  
+  if (positionMatches >= 3) {
+    score += 20; // 多個位置匹配給予額外加分
+    strongSignals++;
+  }
+  
+  return { score, strongSignals };
+}
+
+/**
+ * 計算週期性分析的分數（基於斐波那契數列的週期性）
+ * @param {number} num - 號碼
+ * @param {Array} appearances - 出現位置陣列
+ * @param {Array} gaps - 間隔陣列
+ * @param {number} gapSinceLast - 距離最後一次出現的間隔
+ * @param {number} filteredLength - 過濾後的期數長度
+ * @param {Array} fibonacciSequence - 斐波那契數列
+ * @param {number} goldenRatio - 黃金比例
+ * @param {Set} fibonacciSet - 斐波那契數集合
+ * @returns {Object} { score, strongSignals }
+ */
+function scorePeriodicityAnalysis(num, appearances, gaps, gapSinceLast, filteredLength, fibonacciSequence, goldenRatio, fibonacciSet) {
+  let score = 0;
+  let strongSignals = 0;
+  
+  if (appearances.length > 0) {
+    let periodMatches = 0;
+    fibonacciSequence.forEach(fib => {
+      const diff = Math.abs(gapSinceLast - fib);
+      // 使用基於百分比的容差：允許20%的誤差，但至少1期
+      const tolerance = Math.max(1, Math.ceil(fib * 0.2));
+      if (diff <= tolerance) {
+        // 分數根據相對誤差計算：完全匹配得分最高
+        const relativeError = diff / (fib + 1); // 避免除以0
+        const matchScore = Math.round((1 - relativeError) * 20);
+        score += matchScore;
+        periodMatches++;
+        if (diff === 0) {
+          strongSignals++;
+        }
+      }
+    });
+    
+    // 如果間隔接近多個斐波那契數，給予額外加分
+    if (periodMatches >= 2) {
+      score += 30;
+      strongSignals++;
+    }
+    
+    // 使用黃金比例預測下一個出現時間
+    if (appearances.length >= 2 && gaps.length > 0) {
+      const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+      const predictedGap = Math.round(avgGap * goldenRatio);
+      // 使用基於百分比的容差：允許20%的誤差，但至少1期
+      const tolerance = Math.max(1, Math.ceil(predictedGap * 0.2));
+      const diff = Math.abs(gapSinceLast - predictedGap);
+      if (diff <= tolerance) {
+        score += 25;
+        strongSignals++;
+      }
+    }
+  } else {
+    // 如果從未出現，檢查是否為斐波那契數
+    if (fibonacciSet.has(num)) {
+      score += 20; // 增加未出現但為斐波那契數的分數
+    }
+  }
+  
+  return { score, strongSignals };
+}
+
+
+/**
+ * 計算強信號加成的分數
+ * @param {number} strongSignals - 強信號數量
+ * @returns {number} 分數
+ */
+function scoreStrongSignalBonus(strongSignals) {
+  if (strongSignals >= 3) {
+    return 50; // 多個強信號組合，給予大幅加分
+  } else if (strongSignals >= 2) {
+    return 30;
+  } else if (strongSignals >= 1) {
+    return 15;
+  }
+  return 0;
+}
+
+/**
+ * 計算最近期數的斐波那契模式分析分數
+ * @param {number} num - 號碼
+ * @param {Array} filtered - 過濾後的期數陣列
+ * @param {Array} fibonacciSequence - 斐波那契數列
+ * @returns {Object} { score, strongSignals }
+ */
+function scoreRecentPeriodFibonacciPattern(num, filtered, fibonacciSequence) {
+  let score = 0;
+  let strongSignals = 0;
+  
+  if (filtered.length >= 5) {
+    const recentPeriods = filtered.slice(0, 10); // 最近10期（filtered已按日期排序，最新的在前）
+    let recentMatches = 0;
+    
+    recentPeriods.forEach((period, idx) => {
+      if (period.numbers.includes(num)) {
+        // 檢查在最近期數中的出現是否符合斐波那契模式
+        // 斐波那契序列是1-based (1, 1, 2, 3, 5, 8, 13, 21, 34)
+        // 數組索引是0-based，所以使用 idx === fib - 1 來匹配
+        fibonacciSequence.forEach(fib => {
+          if (idx === fib - 1) { // Match Fibonacci-indexed position (convert 1-based to 0-based)
+            recentMatches++;
+          }
+        });
+      }
+    });
+    
+    if (recentMatches > 0) {
+      score += recentMatches * 15;
+      if (recentMatches >= 2) {
+        strongSignals++;
+      }
+    }
+  }
+  
+  return { score, strongSignals };
+}
+
+/**
+ * 計算斐波那契數列分數
+ * 基於斐波那契數列和黃金比例來分析號碼出現的模式
+ * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @param {Set} excludePeriodNumbers - 可選，要排除的期數集合（期數字串）
+ * @param {Array} filteredNumbers - 可選，預先過濾後的數組（性能優化，避免重複過濾）
+ * @returns {Object} 斐波那契分數
+ */
+function calculateFibonacciScore(allNumbers, excludePeriodNumbers = null, filteredNumbers = null) {
+  const fibonacciScore = {};
+  
+  // 初始化所有可能的號碼 (1-49)
+  for (let i = 1; i <= 49; i++) {
+    fibonacciScore[i] = 0;
+  }
+  
+  // 生成斐波那契數列（直到49以內）
+  const fibonacciSequence = [1, 1, 2, 3, 5, 8, 13, 21, 34];
+  const fibonacciSet = new Set(fibonacciSequence);
+  
+  // 黃金比例
+  const goldenRatio = 1.618033988749895;
+  const goldenRatioInverse = 0.618033988749895;
+  
+  // 使用預過濾的數組（如果提供），否則過濾
+  const filtered = filteredNumbers || (excludePeriodNumbers 
+    ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+    : allNumbers);
+  
+  if (filtered.length === 0) {
+    return { scores: fibonacciScore };
+  }
+  
+  // 為每個號碼計算斐波那契相關分數
+  for (let num = 1; num <= 49; num++) {
+    let score = 0;
+    let strongSignals = 0; // 強信號計數器
+    
+    // 1. 檢查號碼本身是否為斐波那契數
+    const membershipResult = scoreSequenceMembership(num, fibonacciSet);
+    score += membershipResult.score;
+    if (membershipResult.strongSignal) {
+      strongSignals++;
+    }
+    
+    // 2. 分析該號碼出現的間隔模式
+    const appearances = [];
+    filtered.forEach((period, index) => {
+      if (period.numbers.includes(num)) {
+        appearances.push(index);
+      }
+    });
+    
+    // 計算間隔
+    const gaps = [];
+    if (appearances.length > 1) {
+      for (let i = 1; i < appearances.length; i++) {
+        gaps.push(appearances[i] - appearances[i - 1]);
+      }
+    }
+    
+    // 3. 間隔模式分析
+    if (appearances.length > 1) {
+      const gapResult = scoreGapPatterns(gaps, fibonacciSequence);
+      score += gapResult.score;
+      strongSignals += gapResult.strongSignals;
+      
+      // 4. 黃金比例分析
+      const currentGap = filtered.length - 1 - appearances[appearances.length - 1];
+      const goldenRatioResult = scoreGoldenRatioAnalysis(
+        appearances, gaps, currentGap, filtered.length, goldenRatio, goldenRatioInverse
+      );
+      score += goldenRatioResult.score;
+      strongSignals += goldenRatioResult.strongSignals;
+    }
+    
+    // 5. 位置關係分析
+    const positionResult = scorePositionRelationships(num, filtered, fibonacciSet);
+    score += positionResult.score;
+    strongSignals += positionResult.strongSignals;
+    
+    // 6. 週期性分析
+    const gapSinceLast = appearances.length > 0 
+      ? filtered.length - 1 - appearances[appearances.length - 1] 
+      : 0;
+    const periodicityResult = scorePeriodicityAnalysis(
+      num, appearances, gaps, gapSinceLast, filtered.length, 
+      fibonacciSequence, goldenRatio, fibonacciSet
+    );
+    score += periodicityResult.score;
+    strongSignals += periodicityResult.strongSignals;
+    
+    // 7. 強信號加成
+    score += scoreStrongSignalBonus(strongSignals);
+    
+    // 9. 最近期數的斐波那契模式分析
+    const recentResult = scoreRecentPeriodFibonacciPattern(num, filtered, fibonacciSequence);
+    score += recentResult.score;
+    strongSignals += recentResult.strongSignals;
+    
+    // 確保分數範圍，但允許更高的最大值以產生更大的差異
+    fibonacciScore[num] = Math.min(200, Math.max(0, score)); // 提高上限到200以產生更大差異
+  }
+  
+  return {
+    scores: fibonacciScore,
+    fibonacciSequence: fibonacciSequence,
+    goldenRatio: Math.round(goldenRatio * 1000000) / 1000000
+  };
+}
+
+/**
  * 分析並預測最有可能在下一期被抽中的號碼
  * @param {Array} results - 攪珠結果陣列
  * @param {Object} weights - 可選的權重參數 { frequency, weightedFrequency, gap, pattern }
@@ -534,6 +923,7 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
   const trendScore = calculateTrendAnalysis(allNumbers, excludePeriodNumbers, filteredNumbers);
   const chiSquareResult = calculateChiSquareScore(allNumbers, excludePeriodNumbers, filteredNumbers);
   const poissonResult = calculatePoissonScore(allNumbers, excludePeriodNumbers, filteredNumbers);
+  const fibonacciResult = calculateFibonacciScore(allNumbers, excludePeriodNumbers, filteredNumbers);
 
   // 正規化各項分數到 0-100 範圍
   const normalize = (scores) => {
@@ -557,20 +947,23 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
   const normalizedTrendScore = normalize(trendScore);
   const normalizedChiSquareScore = normalize(chiSquareResult.scores);
   const normalizedPoissonScore = normalize(poissonResult.scores);
+  const normalizedFibonacciScore = normalize(fibonacciResult.scores);
 
   // 計算綜合分數（加權組合）
   // 優化權重分配以提高準確率至50%：更重視趨勢和分布分析
-  // 預設權重: 頻率: 12%, 加權頻率: 18%, 間隔: 18%, 模式: 10%, 分布: 18%, 趨勢: 15%, 卡方: 5%, 泊松: 4%
+  // 預設權重: 頻率: 10%, 加權頻率: 14%, 間隔: 14%, 模式: 8%, 分布: 14%, 趨勢: 12%, 卡方: 4%, 泊松: 4%, 斐波那契: 12%
+  // 注意：斐波那契權重設為12%（與趨勢相同），避免過度偏向。迭代驗證會根據實際表現動態調整所有權重。
   // 如果提供了自訂權重，則使用自訂權重
   const defaultWeights = {
-    frequency: 0.12,
-    weightedFrequency: 0.18,
-    gap: 0.18,
-    pattern: 0.10,
-    distribution: 0.18,
-    trend: 0.15,
-    chiSquare: 0.05,
-    poisson: 0.04
+    frequency: 0.10,
+    weightedFrequency: 0.14,
+    gap: 0.14,
+    pattern: 0.08,
+    distribution: 0.14,
+    trend: 0.12,
+    chiSquare: 0.04,
+    poisson: 0.04,
+    fibonacci: 0.12  // 降低初始權重以避免早期預測過度偏向，迭代驗證會根據表現動態調整
   };
   
   const finalWeights = {
@@ -581,13 +974,14 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
     distribution: weights.distribution !== undefined ? weights.distribution : defaultWeights.distribution,
     trend: weights.trend !== undefined ? weights.trend : defaultWeights.trend,
     chiSquare: weights.chiSquare !== undefined ? weights.chiSquare : defaultWeights.chiSquare,
-    poisson: weights.poisson !== undefined ? weights.poisson : defaultWeights.poisson
+    poisson: weights.poisson !== undefined ? weights.poisson : defaultWeights.poisson,
+    fibonacci: weights.fibonacci !== undefined ? weights.fibonacci : defaultWeights.fibonacci
   };
   
   // 正規化權重，確保總和為1
   const totalWeight = finalWeights.frequency + finalWeights.weightedFrequency + finalWeights.gap + 
                       finalWeights.pattern + finalWeights.distribution + finalWeights.trend + 
-                      finalWeights.chiSquare + finalWeights.poisson;
+                      finalWeights.chiSquare + finalWeights.poisson + finalWeights.fibonacci;
   if (totalWeight > 0) {
     Object.keys(finalWeights).forEach(key => {
       finalWeights[key] = finalWeights[key] / totalWeight;
@@ -605,7 +999,8 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
       normalizedDistributionScore[i] * finalWeights.distribution +
       normalizedTrendScore[i] * finalWeights.trend +
       normalizedChiSquareScore[i] * finalWeights.chiSquare +
-      normalizedPoissonScore[i] * finalWeights.poisson;
+      normalizedPoissonScore[i] * finalWeights.poisson +
+      normalizedFibonacciScore[i] * finalWeights.fibonacci;
   }
   
   // 取得前 40 名（增加候選數量以提高命中至少3個的概率，目標平均命中數至少3）
@@ -620,7 +1015,8 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
       distributionScore: Math.round(distributionScore[num] * 100) / 100,
       trendScore: Math.round(trendScore[num] * 100) / 100,
       chiSquareScore: Math.round(chiSquareResult.scores[num] * 100) / 100,
-      poissonScore: Math.round(poissonResult.scores[num] * 100) / 100
+      poissonScore: Math.round(poissonResult.scores[num] * 100) / 100,
+      fibonacciScore: Math.round(fibonacciResult.scores[num] * 100) / 100
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 40); // 增加到40個候選號碼，提供更多選擇以提高命中率
@@ -688,6 +1084,11 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
       poisson: {
         scores: poissonResult.scores,
         lambda: poissonResult.lambda
+      },
+      fibonacci: {
+        scores: fibonacciResult.scores,
+        fibonacciSequence: fibonacciResult.fibonacciSequence,
+        goldenRatio: fibonacciResult.goldenRatio
       }
     }
   };
@@ -1494,7 +1895,8 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
     distribution: 0,
     trend: 0,
     chiSquare: 0,
-    poisson: 0
+    poisson: 0,
+    fibonacci: 0
   };
   
   // 分析命中號碼在各指標中的排名
@@ -1546,6 +1948,7 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   let performanceTrend = 0;
   let performanceChiSquare = 0;
   let performancePoisson = 0;
+  let performanceFibonacci = 0;
   
   if (analysisDetails.distributionScore) {
     const sortedByDistribution = allNumbers.sort((a, b) => 
@@ -1583,6 +1986,15 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
     performancePoisson = (1 / hitRankPoisson) - (1 / missRankPoisson);
   }
   
+  if (analysisDetails.fibonacci && analysisDetails.fibonacci.scores) {
+    const sortedByFibonacci = allNumbers.sort((a, b) => 
+      analysisDetails.fibonacci.scores[b] - analysisDetails.fibonacci.scores[a]
+    );
+    const hitRankFibonacci = calculateAverageRank(hitNumbers, sortedByFibonacci);
+    const missRankFibonacci = calculateAverageRank(missNumbers, sortedByFibonacci);
+    performanceFibonacci = (1 / hitRankFibonacci) - (1 / missRankFibonacci);
+  }
+  
   // 計算總效能（用於正規化）
   const totalPerformance = Math.abs(performanceFrequency) + 
                           Math.abs(performanceWeightedFrequency) + 
@@ -1591,7 +2003,8 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
                           Math.abs(performanceDistribution) +
                           Math.abs(performanceTrend) +
                           Math.abs(performanceChiSquare) +
-                          Math.abs(performancePoisson);
+                          Math.abs(performancePoisson) +
+                          Math.abs(performanceFibonacci);
   
   // 根據準確率差距和指標表現調整權重
   // 動態學習率：準確率差距越大，學習率越高
@@ -1613,6 +2026,7 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   if (newWeights.trend === undefined) newWeights.trend = 0.10;
   if (newWeights.chiSquare === undefined) newWeights.chiSquare = 0.05;
   if (newWeights.poisson === undefined) newWeights.poisson = 0.05;
+  if (newWeights.fibonacci === undefined) newWeights.fibonacci = 0.12;  // 與默認權重保持一致
   
   if (totalPerformance > 0) {
     // 優先處理命中數不足的情況（命中數至少3是硬性要求）
@@ -1646,6 +2060,9 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
       if (performancePoisson > 0 && analysisDetails.poisson) {
         newWeights.poisson += learningRate * adjustmentFactor * criticalMultiplier * (performancePoisson / totalPerformance);
       }
+      if (performanceFibonacci > 0 && analysisDetails.fibonacci) {
+        newWeights.fibonacci += learningRate * adjustmentFactor * criticalMultiplier * (performanceFibonacci / totalPerformance);
+      }
       
       // 減少表現差的指標權重（命中數不足時更積極）
       const reductionMultiplier = isHitCountCritical ? 1.2 : 1.0;
@@ -1673,6 +2090,9 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
       if (performancePoisson < 0 && analysisDetails.poisson) {
         newWeights.poisson = Math.max(0.05, newWeights.poisson - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performancePoisson) / totalPerformance));
       }
+      if (performanceFibonacci < 0 && analysisDetails.fibonacci) {
+        newWeights.fibonacci = Math.max(0.05, newWeights.fibonacci - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performanceFibonacci) / totalPerformance));
+      }
     } else {
       // 如果準確率已達標，微調以保持或進一步提升至更高準確率
       // 即使已達標，也要繼續優化以提高準確率
@@ -1685,7 +2105,8 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
         { name: 'distribution', value: performanceDistribution, available: !!analysisDetails.distributionScore },
         { name: 'trend', value: performanceTrend, available: !!analysisDetails.trendScore },
         { name: 'chiSquare', value: performanceChiSquare, available: !!analysisDetails.chiSquare },
-        { name: 'poisson', value: performancePoisson, available: !!analysisDetails.poisson }
+        { name: 'poisson', value: performancePoisson, available: !!analysisDetails.poisson },
+        { name: 'fibonacci', value: performanceFibonacci, available: !!analysisDetails.fibonacci }
       ].filter(p => p.available !== false);
       
       // 選擇表現最好的前2個指標，給予更多權重
@@ -1701,16 +2122,17 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   } else {
     // 如果無法計算效能，使用啟發式調整（優化準確率）
     if (comparison.hitCount === 0) {
-      // 完全沒命中，大幅增加趨勢、分布和間隔權重（這些指標對提高準確率更有效）
+      // 完全沒命中，大幅增加趨勢、分布、間隔和斐波那契權重（這些指標對提高準確率更有效）
       newWeights.gap = Math.min(0.45, (newWeights.gap || 0.18) + 0.08);
       newWeights.trend = Math.min(0.25, (newWeights.trend || 0.15) + 0.05);
       newWeights.distribution = Math.min(0.28, (newWeights.distribution || 0.18) + 0.05);
       newWeights.pattern = Math.min(0.25, (newWeights.pattern || 0.10) + 0.03);
+      newWeights.fibonacci = Math.min(0.35, (newWeights.fibonacci || 0.12) + 0.05);
       newWeights.frequency = Math.max(0.05, (newWeights.frequency || 0.12) - 0.06);
       newWeights.weightedFrequency = Math.max(0.05, (newWeights.weightedFrequency || 0.18) - 0.05);
     } else if (comparison.hitCount < targetHitCount || currentAccuracy < targetAccuracy) {
       // 命中數少於目標或準確率低於目標，積極調整權重以提高準確率
-      // 優先增加趨勢、分布和間隔權重（這些指標對提高準確率更有效）
+      // 優先增加趨勢、分布、間隔和斐波那契權重（這些指標對提高準確率更有效）
       const hitCountDeficit = targetHitCount - comparison.hitCount;
       const accuracyDeficit = targetAccuracy - currentAccuracy;
       const adjustmentAmount = Math.max(hitCountDeficit * 0.10, accuracyDeficit * 0.15); // 更積極的調整幅度
@@ -1718,6 +2140,7 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
       newWeights.trend = Math.min(0.30, (newWeights.trend || 0.15) + adjustmentAmount * 0.9);
       newWeights.distribution = Math.min(0.30, (newWeights.distribution || 0.18) + adjustmentAmount * 0.8);
       newWeights.pattern = Math.min(0.35, (newWeights.pattern || 0.10) + adjustmentAmount * 0.7);
+      newWeights.fibonacci = Math.min(0.40, (newWeights.fibonacci || 0.12) + adjustmentAmount * 0.75);
       newWeights.weightedFrequency = Math.min(0.55, (newWeights.weightedFrequency || 0.18) + adjustmentAmount * 0.6);
       // 稍微減少頻率權重
       newWeights.frequency = Math.max(0.05, (newWeights.frequency || 0.12) - adjustmentAmount * 0.4);
@@ -1726,6 +2149,7 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
       // 增加表現最好的指標權重
       newWeights.trend = Math.min(0.30, (newWeights.trend || 0.15) + 0.02);
       newWeights.distribution = Math.min(0.30, (newWeights.distribution || 0.18) + 0.02);
+      newWeights.fibonacci = Math.min(0.40, (newWeights.fibonacci || 0.12) + 0.02);
     }
   }
   
@@ -1738,11 +2162,12 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   newWeights.trend = Math.max(0.05, Math.min(0.5, newWeights.trend || 0.1));
   newWeights.chiSquare = Math.max(0.05, Math.min(0.5, newWeights.chiSquare || 0.05));
   newWeights.poisson = Math.max(0.05, Math.min(0.5, newWeights.poisson || 0.05));
+  newWeights.fibonacci = Math.max(0.05, Math.min(0.5, newWeights.fibonacci || 0.12));  // 與默認權重保持一致
   
   // 正規化權重，確保總和為1
   const totalWeight = (newWeights.frequency || 0) + (newWeights.weightedFrequency || 0) + (newWeights.gap || 0) + 
                       (newWeights.pattern || 0) + (newWeights.distribution || 0) + (newWeights.trend || 0) + 
-                      (newWeights.chiSquare || 0) + (newWeights.poisson || 0);
+                      (newWeights.chiSquare || 0) + (newWeights.poisson || 0) + (newWeights.fibonacci || 0);
   if (totalWeight > 0) {
     Object.keys(newWeights).forEach(key => {
       newWeights[key] = newWeights[key] / totalWeight;
@@ -2082,16 +2507,42 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
   
   // 如果目標未達成，進行迭代優化直到達成目標
   let optimizationIterations = 0;
-  const maxOptimizationIterations = 1000; // 最大優化迭代次數（增加到1000）
+  const maxOptimizationIterations = 100; // 最大優化迭代次數（優化為100次）
+  const maxExecutionTimeMs = 240000; // 最大執行時間：4分鐘（240秒），為 Cloud Run 的300秒超時提供60秒安全余量
+  const timeoutWarningMs = 270000; // 超時警告：4.5分鐘（270秒），在接近 Cloud Run 超時前發出警告
+  const earlyExitNoImprovement = 15; // 連續15次未改善則提前退出
   let optimizedWeights = { ...currentWeights };
   let optimizedValidationResults = [...validationResults];
   let noImprovementCount = 0; // 記錄連續未改善的次數
   let bestOptimizedHitCount = averageHitCount; // 記錄最佳平均命中數（優化循環中）
   let bestOptimizedAccuracy = averageAccuracy; // 記錄最佳平均準確率（優化循環中）
   
+  // 性能監控
+  const optimizationStartTime = Date.now();
+  let lastIterationTime = optimizationStartTime;
+  
   while (!meetsAllTargets && optimizationIterations < maxOptimizationIterations) {
     optimizationIterations++;
+    const iterationStartTime = Date.now();
+    const totalElapsedTime = iterationStartTime - optimizationStartTime;
+    
+    // 檢查執行時間限制
+    if (totalElapsedTime > maxExecutionTimeMs) {
+      console.warn(`⚠️ 達到最大執行時間限制（${(maxExecutionTimeMs / 1000).toFixed(0)}秒），停止優化迭代`);
+      break;
+    }
+    
+    // 檢查連續未改善次數（早期退出）
+    if (noImprovementCount >= earlyExitNoImprovement && optimizationIterations > 20) {
+      console.warn(`⚠️ 連續 ${noImprovementCount} 次未見改善，提前退出優化迭代（已執行 ${optimizationIterations} 次）`);
+      break;
+    }
+    
     console.log(`開始第 ${optimizationIterations} 次優化迭代，當前狀態：平均命中數=${averageHitCount.toFixed(2)}, 平均準確率=${averageAccuracy.toFixed(2)}%`);
+    if (optimizationIterations > 1) {
+      const lastIterationDuration = iterationStartTime - lastIterationTime;
+      console.log(`上次迭代耗時：${(lastIterationDuration / 1000).toFixed(2)}秒，總耗時：${(totalElapsedTime / 1000).toFixed(2)}秒`);
+    }
     
     // 計算需要改進的方向
     const hitCountGap = Math.max(0, targetAverageHitCount - averageHitCount);
@@ -2142,7 +2593,7 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
     // 正規化權重
     const totalWeight = (optimizedWeights.frequency || 0) + (optimizedWeights.weightedFrequency || 0) + (optimizedWeights.gap || 0) + 
                         (optimizedWeights.pattern || 0) + (optimizedWeights.distribution || 0) + (optimizedWeights.trend || 0) + 
-                        (optimizedWeights.chiSquare || 0) + (optimizedWeights.poisson || 0);
+                        (optimizedWeights.chiSquare || 0) + (optimizedWeights.poisson || 0) + (optimizedWeights.fibonacci || 0);
     if (totalWeight > 0) {
       Object.keys(optimizedWeights).forEach(key => {
         optimizedWeights[key] = optimizedWeights[key] / totalWeight;
@@ -2313,19 +2764,66 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
           noImprovementCount++; // 增加未改善計數
         }
         
+        const iterationEndTime = Date.now();
+        const iterationDuration = iterationEndTime - iterationStartTime;
+        const totalElapsedTime = iterationEndTime - optimizationStartTime;
+        
         console.log(`優化迭代 ${optimizationIterations} 完成，新狀態：平均命中數=${averageHitCount.toFixed(2)}, 平均準確率=${averageAccuracy.toFixed(2)}%`);
+        console.log(`本次迭代耗時：${(iterationDuration / 1000).toFixed(2)}秒，總耗時：${(totalElapsedTime / 1000).toFixed(2)}秒`);
+        
+        // 監控權重變化（特別是斐波那契權重）
+        if (optimizationIterations % 10 === 0 || optimizationIterations === 1) {
+          const fibWeight = (optimizedWeights.fibonacci || 0) * 100;
+          const fibWeightChange = optimizationIterations === 1 
+            ? '初始' 
+            : `變化: ${((optimizedWeights.fibonacci - (optimizationIterations === 1 ? 0.12 : 0.12)) * 100).toFixed(1)}%`;
+          console.log(`權重監控 - 斐波那契: ${fibWeight.toFixed(1)}% ${fibWeightChange}`);
+          console.log(`權重分布 - 頻率: ${(optimizedWeights.frequency * 100).toFixed(1)}%, 加權頻率: ${(optimizedWeights.weightedFrequency * 100).toFixed(1)}%, 間隔: ${(optimizedWeights.gap * 100).toFixed(1)}%, 趨勢: ${(optimizedWeights.trend * 100).toFixed(1)}%, 分布: ${(optimizedWeights.distribution * 100).toFixed(1)}%`);
+        }
+        
         if (noImprovementCount > 0) {
           console.log(`已連續 ${noImprovementCount} 次未見改善，將嘗試更激進的策略`);
+        }
+        
+        // 性能警告：如果單次迭代超過30秒
+        if (iterationDuration > 30000) {
+          console.warn(`⚠️ 本次迭代耗時較長（${(iterationDuration / 1000).toFixed(2)}秒），可能影響整體性能`);
+        }
+        
+        // 性能警告：如果總耗時超過3分鐘
+        if (totalElapsedTime > 180000 && optimizationIterations < maxOptimizationIterations) {
+          console.warn(`⚠️ 優化迭代已耗時 ${(totalElapsedTime / 1000).toFixed(0)}秒，剩餘迭代可能耗時更長`);
+        }
+        
+        // 超時警告：如果接近 Cloud Run 超時（4.5分鐘），發出嚴重警告
+        if (totalElapsedTime > timeoutWarningMs) {
+          console.error(`🚨 嚴重警告：優化迭代已耗時 ${(totalElapsedTime / 1000).toFixed(0)}秒（${(totalElapsedTime / 60000).toFixed(1)}分鐘），接近 Cloud Run 超時限制（300秒）！`);
+          console.error(`🚨 建議立即停止迭代以避免請求超時。剩餘安全時間：${((300000 - totalElapsedTime) / 1000).toFixed(0)}秒`);
         }
         
         if (meetsAllTargets) {
           console.log('✓ 所有目標已達成！');
           break;
         }
+        
+        lastIterationTime = iterationEndTime;
       } else {
-        // 如果優化沒有改善，繼續嘗試（不再提前退出）
+        // 如果優化沒有改善，繼續嘗試
         noImprovementCount++;
+        const iterationEndTime = Date.now();
+        const iterationDuration = iterationEndTime - iterationStartTime;
+        const totalElapsedTime = iterationEndTime - optimizationStartTime;
+        
         console.log(`優化迭代 ${optimizationIterations} 未見改善（已連續 ${noImprovementCount} 次），繼續嘗試其他策略...`);
+        console.log(`本次迭代耗時：${(iterationDuration / 1000).toFixed(2)}秒，總耗時：${(totalElapsedTime / 1000).toFixed(2)}秒`);
+        
+        // 超時警告：如果接近 Cloud Run 超時（4.5分鐘），發出嚴重警告
+        if (totalElapsedTime > timeoutWarningMs) {
+          console.error(`🚨 嚴重警告：優化迭代已耗時 ${(totalElapsedTime / 1000).toFixed(0)}秒（${(totalElapsedTime / 60000).toFixed(1)}分鐘），接近 Cloud Run 超時限制（300秒）！`);
+          console.error(`🚨 建議立即停止迭代以避免請求超時。剩餘安全時間：${((300000 - totalElapsedTime) / 1000).toFixed(0)}秒`);
+        }
+        
+        lastIterationTime = iterationEndTime;
         
         // 即使未見改善，也更新最佳值（如果更接近目標）
         const currentDistance = Math.max(0, targetAverageHitCount - averageHitCount) * 10 + 
@@ -2340,6 +2838,49 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
       }
     }
   }
+  
+  // 優化迭代完成，輸出性能統計
+  const optimizationEndTime = Date.now();
+  const totalOptimizationTime = optimizationEndTime - optimizationStartTime;
+  const averageIterationTime = optimizationIterations > 0 ? totalOptimizationTime / optimizationIterations : 0;
+  
+  console.log(`\n=== 優化迭代性能統計 ===`);
+  console.log(`總迭代次數：${optimizationIterations} / ${maxOptimizationIterations}`);
+  console.log(`總耗時：${(totalOptimizationTime / 1000).toFixed(2)}秒（${(totalOptimizationTime / 60000).toFixed(2)}分鐘）`);
+  console.log(`平均每次迭代耗時：${(averageIterationTime / 1000).toFixed(2)}秒`);
+  if (optimizationIterations >= maxOptimizationIterations) {
+    console.log(`⚠️ 達到最大迭代次數限制`);
+  }
+  if (noImprovementCount >= earlyExitNoImprovement) {
+    console.log(`⚠️ 因連續 ${noImprovementCount} 次未改善而提前退出`);
+  }
+  if (totalOptimizationTime > maxExecutionTimeMs) {
+    console.log(`⚠️ 達到最大執行時間限制（${(maxExecutionTimeMs / 1000).toFixed(0)}秒）`);
+  }
+  if (totalOptimizationTime > timeoutWarningMs) {
+    console.error(`🚨 警告：總耗時超過 ${(timeoutWarningMs / 1000).toFixed(0)}秒，接近 Cloud Run 超時限制（300秒）`);
+    console.error(`🚨 距離 Cloud Run 超時僅剩 ${((300000 - totalOptimizationTime) / 1000).toFixed(0)}秒，可能導致請求失敗`);
+  }
+  console.log(`最終狀態：平均命中數=${averageHitCount.toFixed(2)}, 平均準確率=${averageAccuracy.toFixed(2)}%`);
+  console.log(`目標達成：${meetsAllTargets ? '✓ 是' : '✗ 否'}`);
+  console.log(`\n最終權重分布：`);
+  console.log(`  頻率: ${(currentWeights.frequency * 100).toFixed(1)}%, 加權頻率: ${(currentWeights.weightedFrequency * 100).toFixed(1)}%`);
+  console.log(`  間隔: ${(currentWeights.gap * 100).toFixed(1)}%, 模式: ${(currentWeights.pattern * 100).toFixed(1)}%`);
+  console.log(`  分布: ${(currentWeights.distribution * 100).toFixed(1)}%, 趨勢: ${(currentWeights.trend * 100).toFixed(1)}%`);
+  console.log(`  卡方: ${(currentWeights.chiSquare * 100).toFixed(1)}%, 泊松: ${(currentWeights.poisson * 100).toFixed(1)}%`);
+  const fibWeightFinal = (currentWeights.fibonacci || 0) * 100;
+  const fibWeightInitial = 12.0;
+  const fibWeightChange = fibWeightFinal - fibWeightInitial;
+  const fibWeightChangeStr = fibWeightChange > 0 
+    ? `(+${fibWeightChange.toFixed(1)}%)` 
+    : fibWeightChange < 0 
+      ? `(${fibWeightChange.toFixed(1)}%)` 
+      : '(無變化)';
+  console.log(`  斐波那契: ${fibWeightFinal.toFixed(1)}% ${fibWeightChangeStr} [初始: ${fibWeightInitial}%]`);
+  if (Math.abs(fibWeightChange) > 5) {
+    console.log(`  ⚠️ 斐波那契權重變化較大（${fibWeightChange > 0 ? '增加' : '減少'} ${Math.abs(fibWeightChange).toFixed(1)}%），請監控預測準確性`);
+  }
+  console.log(`========================\n`);
   
   // 更新最終權重
   currentWeights = { ...optimizedWeights };
