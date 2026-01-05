@@ -79,8 +79,8 @@ router.post('/validate', async (req, res) => {
       });
     }
     
-    // 使用 Promise.resolve 包装同步函数调用，明确表示这是一个可能耗时的操作
-    // 这样可以避免阻塞事件循环，并允许其他请求继续处理
+    // 使用 Promise.resolve 包装同步函数调用，明确表示这是一个异步操作
+    // 注意：此函数仍然是同步执行，可能会阻塞事件循环长达数分钟
     const validation = await Promise.resolve(analysisService.iterativeValidation(results, lookbackPeriods));
     
     res.json({
