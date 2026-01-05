@@ -168,15 +168,19 @@ docker run -p 8080:8080 mark-six-statistics
     }
   ],
   "weights": {
-    "frequency": 0.10,
-    "weightedFrequency": 0.14,
-    "gap": 0.14,
-    "pattern": 0.08,
-    "distribution": 0.14,
-    "trend": 0.12,
-    "chiSquare": 0.04,
-    "poisson": 0.04,
-    "fibonacci": 0.12
+    "frequency": 0.08,
+    "weightedFrequency": 0.10,
+    "gap": 0.10,
+    "pattern": 0.06,
+    "distribution": 0.10,
+    "trend": 0.09,
+    "chiSquare": 0.03,
+    "poisson": 0.03,
+    "fibonacci": 0.08,
+    "correlation": 0.08,
+    "entropy": 0.06,
+    "markov": 0.10,
+    "combinatorial": 0.09
   }
 }
 ```
@@ -198,7 +202,11 @@ docker run -p 8080:8080 mark-six-statistics
         "trendScore": 14.56,
         "chiSquareScore": 6.78,
         "poissonScore": 5.43,
-        "fibonacciScore": 12.89
+        "fibonacciScore": 12.89,
+        "correlationScore": 8.45,
+        "entropyScore": 7.23,
+        "markovScore": 9.12,
+        "combinatorialScore": 8.67
       }
     ],
     "stats": {
@@ -256,6 +264,27 @@ docker run -p 8080:8080 mark-six-statistics
         "fibonacciSequence": [1, 1, 2, 3, 5, 8, 13, 21, 34],
         "goldenRatio": 1.618
       },
+      "correlation": {
+        "scores": { "1": 5.8, "2": 6.2, ... },
+        "correlations": { "1": [{ "number": 15, "correlation": 0.35 }], ... }
+      },
+      "entropy": {
+        "scores": { "1": 4.5, "2": 5.1, ... },
+        "overallEntropy": 5.89,
+        "maxEntropy": 5.61
+      },
+      "markov": {
+        "scores": { "1": 6.2, "2": 7.1, ... },
+        "transitionMatrix": { "1": { "2": 0.15, "3": 0.12, ... }, ... }
+      },
+      "combinatorial": {
+        "scores": { "1": 5.8, "2": 6.5, ... },
+        "patterns": {
+          "avgSum": 150.5,
+          "avgDiff": 8.2,
+          "commonSums": [145, 150, 155, ...]
+        }
+      },
       "compositeScore": { "1": 45.6, "2": 52.3, ... }
     }
   }
@@ -299,28 +328,36 @@ docker run -p 8080:8080 mark-six-statistics
           "coverage": 16.67
         },
         "weights": {
-          "frequency": 0.10,
-          "weightedFrequency": 0.14,
-          "gap": 0.14,
-          "pattern": 0.08,
-          "distribution": 0.14,
-          "trend": 0.12,
-          "chiSquare": 0.04,
-          "poisson": 0.04,
-          "fibonacci": 0.12
+          "frequency": 0.08,
+          "weightedFrequency": 0.10,
+          "gap": 0.10,
+          "pattern": 0.06,
+          "distribution": 0.10,
+          "trend": 0.09,
+          "chiSquare": 0.03,
+          "poisson": 0.03,
+          "fibonacci": 0.08,
+          "correlation": 0.08,
+          "entropy": 0.06,
+          "markov": 0.10,
+          "combinatorial": 0.09
         }
       }
     ],
     "finalWeights": {
-      "frequency": 0.10,
-      "weightedFrequency": 0.14,
-      "gap": 0.14,
-      "pattern": 0.08,
-      "distribution": 0.14,
-      "trend": 0.12,
-      "chiSquare": 0.04,
-      "poisson": 0.04,
-      "fibonacci": 0.12
+      "frequency": 0.08,
+      "weightedFrequency": 0.10,
+      "gap": 0.10,
+      "pattern": 0.06,
+      "distribution": 0.10,
+      "trend": 0.09,
+      "chiSquare": 0.03,
+      "poisson": 0.03,
+      "fibonacci": 0.08,
+      "correlation": 0.08,
+      "entropy": 0.06,
+      "markov": 0.10,
+      "combinatorial": 0.09
     },
     "statistics": {
       "totalHits": 30,

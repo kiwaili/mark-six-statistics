@@ -490,14 +490,24 @@ function iterativeValidation(allResults, lookbackPeriods = 100) {
   // 使用多組初始權重進行測試，選擇最佳的一組
   // 優化目標：提高準確率至50%，更重視趨勢、分布和間隔分析
   // 目標：平均每期命中數至少3，準確率至少50%
+  // 包含所有13種統計方法的權重配置
   const initialWeightSets = [
-    { frequency: 0.10, weightedFrequency: 0.16, gap: 0.20, pattern: 0.10, distribution: 0.18, trend: 0.16, chiSquare: 0.05, poisson: 0.03, fibonacci: 0.12 },
-    { frequency: 0.08, weightedFrequency: 0.18, gap: 0.20, pattern: 0.10, distribution: 0.20, trend: 0.14, chiSquare: 0.05, poisson: 0.03, fibonacci: 0.12 },
-    { frequency: 0.12, weightedFrequency: 0.18, gap: 0.18, pattern: 0.10, distribution: 0.18, trend: 0.14, chiSquare: 0.05, poisson: 0.03, fibonacci: 0.12 },
-    { frequency: 0.10, weightedFrequency: 0.16, gap: 0.18, pattern: 0.12, distribution: 0.18, trend: 0.16, chiSquare: 0.05, poisson: 0.03, fibonacci: 0.12 },
-    { frequency: 0.08, weightedFrequency: 0.18, gap: 0.22, pattern: 0.10, distribution: 0.18, trend: 0.14, chiSquare: 0.05, poisson: 0.03, fibonacci: 0.12 },
-    { frequency: 0.12, weightedFrequency: 0.16, gap: 0.20, pattern: 0.10, distribution: 0.16, trend: 0.16, chiSquare: 0.05, poisson: 0.03, fibonacci: 0.12 },
-    { frequency: 0.10, weightedFrequency: 0.18, gap: 0.18, pattern: 0.10, distribution: 0.20, trend: 0.14, chiSquare: 0.04, poisson: 0.04, fibonacci: 0.12 }
+    // 配置1：默認權重（平衡配置）
+    { frequency: 0.08, weightedFrequency: 0.10, gap: 0.10, pattern: 0.06, distribution: 0.10, trend: 0.09, chiSquare: 0.03, poisson: 0.03, fibonacci: 0.08, correlation: 0.08, entropy: 0.06, markov: 0.10, combinatorial: 0.09 },
+    // 配置2：重視間隔和馬可夫鏈
+    { frequency: 0.06, weightedFrequency: 0.08, gap: 0.15, pattern: 0.05, distribution: 0.10, trend: 0.08, chiSquare: 0.02, poisson: 0.02, fibonacci: 0.06, correlation: 0.08, entropy: 0.05, markov: 0.15, combinatorial: 0.10 },
+    // 配置3：重視加權頻率和分布
+    { frequency: 0.06, weightedFrequency: 0.15, gap: 0.08, pattern: 0.05, distribution: 0.15, trend: 0.10, chiSquare: 0.03, poisson: 0.03, fibonacci: 0.07, correlation: 0.08, entropy: 0.06, markov: 0.08, combinatorial: 0.06 },
+    // 配置4：重視趨勢和組合數學
+    { frequency: 0.07, weightedFrequency: 0.09, gap: 0.09, pattern: 0.05, distribution: 0.09, trend: 0.15, chiSquare: 0.02, poisson: 0.02, fibonacci: 0.07, correlation: 0.07, entropy: 0.05, markov: 0.09, combinatorial: 0.15 },
+    // 配置5：重視相關性和熵分析
+    { frequency: 0.07, weightedFrequency: 0.08, gap: 0.08, pattern: 0.05, distribution: 0.08, trend: 0.08, chiSquare: 0.02, poisson: 0.02, fibonacci: 0.07, correlation: 0.15, entropy: 0.12, markov: 0.10, combinatorial: 0.10 },
+    // 配置6：重視頻率和斐波那契
+    { frequency: 0.12, weightedFrequency: 0.10, gap: 0.08, pattern: 0.06, distribution: 0.08, trend: 0.08, chiSquare: 0.03, poisson: 0.03, fibonacci: 0.12, correlation: 0.08, entropy: 0.06, markov: 0.08, combinatorial: 0.08 },
+    // 配置7：重視馬可夫鏈和組合數學
+    { frequency: 0.06, weightedFrequency: 0.08, gap: 0.10, pattern: 0.05, distribution: 0.08, trend: 0.08, chiSquare: 0.02, poisson: 0.02, fibonacci: 0.06, correlation: 0.08, entropy: 0.05, markov: 0.18, combinatorial: 0.14 },
+    // 配置8：平衡所有新方法
+    { frequency: 0.07, weightedFrequency: 0.09, gap: 0.10, pattern: 0.05, distribution: 0.09, trend: 0.08, chiSquare: 0.02, poisson: 0.02, fibonacci: 0.07, correlation: 0.12, entropy: 0.08, markov: 0.12, combinatorial: 0.09 }
   ];
   
   // 測試每組初始權重，選擇表現最好的
