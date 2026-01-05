@@ -719,56 +719,6 @@ function scorePeriodicityAnalysis(num, appearances, gaps, gapSinceLast, filtered
   return { score, strongSignals };
 }
 
-/**
- * 計算黃金比例位置預測的分數
- * 基於號碼在歷史結果中的平均號碼值，使用黃金比例預測下一個可能的號碼值
- * @param {number} num - 號碼
- * @param {Array} filtered - 過濾後的期數陣列
- * @param {number} goldenRatio - 黃金比例
- * @param {number} goldenRatioInverse - 反向黃金比例
- * @returns {number} 分數
- */
-function scoreGoldenRatioPositionPrediction(num, filtered, goldenRatio, goldenRatioInverse) {
-  let score = 0;
-  const numberValues = []; // 收集號碼在歷史中出現時的所有號碼值
-  
-  filtered.forEach(period => {
-    if (period.numbers.includes(num)) {
-      // 收集該期所有號碼值，用於計算平均號碼值
-      numberValues.push(...period.numbers);
-    }
-  });
-  
-  if (numberValues.length > 0) {
-    // 計算歷史中號碼出現時的平均號碼值
-    const avgNumberValue = numberValues.reduce((a, b) => a + b, 0) / numberValues.length;
-    
-    // 使用黃金比例預測下一個可能的號碼值
-    // 預測值可能在 avgNumberValue * goldenRatio 或 avgNumberValue * goldenRatioInverse 附近
-    // 但需要限制在1-49範圍內
-    const predictedValue1 = Math.min(49, Math.max(1, Math.round(avgNumberValue * goldenRatio)));
-    const predictedValue2 = Math.min(49, Math.max(1, Math.round(avgNumberValue * goldenRatioInverse)));
-    
-    // 檢查當前號碼是否接近預測值（允許5個號碼的誤差）
-    const diff1 = Math.abs(num - predictedValue1);
-    const diff2 = Math.abs(num - predictedValue2);
-    
-    if (diff1 <= 5) {
-      // 越接近預測值，分數越高
-      score += 15 - diff1 * 2;
-    }
-    if (diff2 <= 5) {
-      score += 15 - diff2 * 2;
-    }
-    
-    // 如果同時接近兩個預測值，給予額外加分
-    if (diff1 <= 5 && diff2 <= 5) {
-      score += 5;
-    }
-  }
-  
-  return Math.max(0, score); // 確保分數不為負
-}
 
 /**
  * 計算強信號加成的分數
@@ -917,12 +867,7 @@ function calculateFibonacciScore(allNumbers, excludePeriodNumbers = null, filter
     score += periodicityResult.score;
     strongSignals += periodicityResult.strongSignals;
     
-    // 7. 黃金比例位置預測
-    if (appearances.length > 0) {
-      score += scoreGoldenRatioPositionPrediction(num, filtered, goldenRatio, goldenRatioInverse);
-    }
-    
-    // 8. 強信號加成
+    // 7. 強信號加成
     score += scoreStrongSignalBonus(strongSignals);
     
     // 9. 最近期數的斐波那契模式分析
@@ -2563,15 +2508,40 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
   // 如果目標未達成，進行迭代優化直到達成目標
   let optimizationIterations = 0;
   const maxOptimizationIterations = 100; // 最大優化迭代次數（優化為100次）
+  const maxExecutionTimeMs = 300000; // 最大執行時間：5分鐘（300秒）
+  const earlyExitNoImprovement = 15; // 連續15次未改善則提前退出
   let optimizedWeights = { ...currentWeights };
   let optimizedValidationResults = [...validationResults];
   let noImprovementCount = 0; // 記錄連續未改善的次數
   let bestOptimizedHitCount = averageHitCount; // 記錄最佳平均命中數（優化循環中）
   let bestOptimizedAccuracy = averageAccuracy; // 記錄最佳平均準確率（優化循環中）
   
+  // 性能監控
+  const optimizationStartTime = Date.now();
+  let lastIterationTime = optimizationStartTime;
+  
   while (!meetsAllTargets && optimizationIterations < maxOptimizationIterations) {
     optimizationIterations++;
+    const iterationStartTime = Date.now();
+    const totalElapsedTime = iterationStartTime - optimizationStartTime;
+    
+    // 檢查執行時間限制
+    if (totalElapsedTime > maxExecutionTimeMs) {
+      console.warn(`⚠️ 達到最大執行時間限制（${(maxExecutionTimeMs / 1000).toFixed(0)}秒），停止優化迭代`);
+      break;
+    }
+    
+    // 檢查連續未改善次數（早期退出）
+    if (noImprovementCount >= earlyExitNoImprovement && optimizationIterations > 20) {
+      console.warn(`⚠️ 連續 ${noImprovementCount} 次未見改善，提前退出優化迭代（已執行 ${optimizationIterations} 次）`);
+      break;
+    }
+    
     console.log(`開始第 ${optimizationIterations} 次優化迭代，當前狀態：平均命中數=${averageHitCount.toFixed(2)}, 平均準確率=${averageAccuracy.toFixed(2)}%`);
+    if (optimizationIterations > 1) {
+      const lastIterationDuration = iterationStartTime - lastIterationTime;
+      console.log(`上次迭代耗時：${(lastIterationDuration / 1000).toFixed(2)}秒，總耗時：${(totalElapsedTime / 1000).toFixed(2)}秒`);
+    }
     
     // 計算需要改進的方向
     const hitCountGap = Math.max(0, targetAverageHitCount - averageHitCount);
@@ -2793,19 +2763,44 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
           noImprovementCount++; // 增加未改善計數
         }
         
+        const iterationEndTime = Date.now();
+        const iterationDuration = iterationEndTime - iterationStartTime;
+        const totalElapsedTime = iterationEndTime - optimizationStartTime;
+        
         console.log(`優化迭代 ${optimizationIterations} 完成，新狀態：平均命中數=${averageHitCount.toFixed(2)}, 平均準確率=${averageAccuracy.toFixed(2)}%`);
+        console.log(`本次迭代耗時：${(iterationDuration / 1000).toFixed(2)}秒，總耗時：${(totalElapsedTime / 1000).toFixed(2)}秒`);
+        
         if (noImprovementCount > 0) {
           console.log(`已連續 ${noImprovementCount} 次未見改善，將嘗試更激進的策略`);
+        }
+        
+        // 性能警告：如果單次迭代超過30秒
+        if (iterationDuration > 30000) {
+          console.warn(`⚠️ 本次迭代耗時較長（${(iterationDuration / 1000).toFixed(2)}秒），可能影響整體性能`);
+        }
+        
+        // 性能警告：如果總耗時超過3分鐘
+        if (totalElapsedTime > 180000 && optimizationIterations < maxOptimizationIterations) {
+          console.warn(`⚠️ 優化迭代已耗時 ${(totalElapsedTime / 1000).toFixed(0)}秒，剩餘迭代可能耗時更長`);
         }
         
         if (meetsAllTargets) {
           console.log('✓ 所有目標已達成！');
           break;
         }
+        
+        lastIterationTime = iterationEndTime;
       } else {
-        // 如果優化沒有改善，繼續嘗試（不再提前退出）
+        // 如果優化沒有改善，繼續嘗試
         noImprovementCount++;
+        const iterationEndTime = Date.now();
+        const iterationDuration = iterationEndTime - iterationStartTime;
+        const totalElapsedTime = iterationEndTime - optimizationStartTime;
+        
         console.log(`優化迭代 ${optimizationIterations} 未見改善（已連續 ${noImprovementCount} 次），繼續嘗試其他策略...`);
+        console.log(`本次迭代耗時：${(iterationDuration / 1000).toFixed(2)}秒，總耗時：${(totalElapsedTime / 1000).toFixed(2)}秒`);
+        
+        lastIterationTime = iterationEndTime;
         
         // 即使未見改善，也更新最佳值（如果更接近目標）
         const currentDistance = Math.max(0, targetAverageHitCount - averageHitCount) * 10 + 
@@ -2820,6 +2815,28 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
       }
     }
   }
+  
+  // 優化迭代完成，輸出性能統計
+  const optimizationEndTime = Date.now();
+  const totalOptimizationTime = optimizationEndTime - optimizationStartTime;
+  const averageIterationTime = optimizationIterations > 0 ? totalOptimizationTime / optimizationIterations : 0;
+  
+  console.log(`\n=== 優化迭代性能統計 ===`);
+  console.log(`總迭代次數：${optimizationIterations} / ${maxOptimizationIterations}`);
+  console.log(`總耗時：${(totalOptimizationTime / 1000).toFixed(2)}秒（${(totalOptimizationTime / 60000).toFixed(2)}分鐘）`);
+  console.log(`平均每次迭代耗時：${(averageIterationTime / 1000).toFixed(2)}秒`);
+  if (optimizationIterations >= maxOptimizationIterations) {
+    console.log(`⚠️ 達到最大迭代次數限制`);
+  }
+  if (noImprovementCount >= earlyExitNoImprovement) {
+    console.log(`⚠️ 因連續 ${noImprovementCount} 次未改善而提前退出`);
+  }
+  if (totalOptimizationTime > maxExecutionTimeMs) {
+    console.log(`⚠️ 達到最大執行時間限制`);
+  }
+  console.log(`最終狀態：平均命中數=${averageHitCount.toFixed(2)}, 平均準確率=${averageAccuracy.toFixed(2)}%`);
+  console.log(`目標達成：${meetsAllTargets ? '✓ 是' : '✗ 否'}`);
+  console.log(`========================\n`);
   
   // 更新最終權重
   currentWeights = { ...optimizedWeights };
