@@ -367,7 +367,9 @@ function calculateChiSquareScore(allNumbers, excludePeriodNumbers = null, filter
   
   const frequency = calculateFrequency(allNumbers, excludePeriodNumbers, filteredNumbers);
   // 使用預過濾的數組（如果提供）
-  const filtered = filteredNumbers || allNumbers;
+  const filtered = filteredNumbers || (excludePeriodNumbers 
+        ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+        : allNumbers);
   const totalPeriods = filtered.length;
   const totalNumbers = totalPeriods * 6; // 每期6個號碼
   const expectedFrequency = totalNumbers / 49; // 期望頻率

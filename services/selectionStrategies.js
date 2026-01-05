@@ -65,41 +65,6 @@ function selectOptimalNumbers(topNumbers, count = 6, historicalResults = null) {
     candidates.push({ numbers: candidate8, strategy: 'history' });
   }
   
-  // 如果有歷史數據，使用歷史表現來選擇
-  if (historicalResults && historicalResults.length > 0) {
-    // 計算每個策略的歷史命中率
-    const strategyPerformance = {};
-    historicalResults.forEach(result => {
-      if (result.strategy) {
-        if (!strategyPerformance[result.strategy]) {
-          strategyPerformance[result.strategy] = { hits: 0, total: 0, atLeast3: 0 };
-        }
-        strategyPerformance[result.strategy].hits += result.comparison.hitCount;
-        strategyPerformance[result.strategy].total += 1;
-        if (result.comparison.hitCount >= 3) {
-          strategyPerformance[result.strategy].atLeast3 += 1;
-        }
-      }
-    });
-    
-      // 優先選擇歷史表現最好的策略（至少命中3個的比率最高，目標平均命中數至少3）
-      candidates.sort((a, b) => {
-        const perfA = strategyPerformance[a.strategy];
-        const perfB = strategyPerformance[b.strategy];
-        if (perfA && perfB) {
-          const avgHitA = perfA.hits / perfA.total;
-          const avgHitB = perfB.hits / perfB.total;
-          const rateA = perfA.atLeast3 / perfA.total;
-          const rateB = perfB.atLeast3 / perfB.total;
-          // 優先考慮平均命中數（目標至少3），其次考慮至少3個的比率
-          if (avgHitA !== avgHitB) return avgHitB - avgHitA;
-          if (rateA !== rateB) return rateB - rateA;
-          return 0;
-        }
-        return 0;
-      });
-  }
-  
   // 評估每個候選組合的綜合分數（優化命中至少3個，目標平均命中數至少3）
   const scoredCandidates = candidates.map(candidate => {
     const numbers = candidate.numbers;
@@ -623,16 +588,16 @@ function determineStrategy(predictedNumbers, topNumbers) {
     return 'top6';
   }
   
-  // 檢查是否為前4個最高分 + 2個其他
-  const hasTop4 = top4.every(n => predNums.includes(n));
-  if (hasTop4 && predNums.length === 6) {
-    return 'top4plus2';
-  }
-  
   // 檢查是否為前5個最高分 + 1個其他
   const hasTop5 = top5.every(n => predNums.includes(n));
   if (hasTop5 && predNums.length === 6) {
     return 'top5plus1';
+  }
+
+  // 檢查是否為前4個最高分 + 2個其他
+  const hasTop4 = top4.every(n => predNums.includes(n));
+  if (hasTop4 && predNums.length === 6) {
+    return 'top4plus2';
   }
   
   // 檢查是否為均勻分布（每個區間都有號碼）

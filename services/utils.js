@@ -54,7 +54,9 @@ function parsePeriodNumber(periodNumber) {
   // 格式 25/132 (年份/期數)
   const match1 = periodNumber.match(/^(\d{2})\/(\d+)$/);
   if (match1) {
-    const year = parseInt(match1[1], 10);
+    const shortYear = parseInt(match1[1], 10);
+    // Convert 2-digit year to 4-digit (assuming 2000s)
+    const year = shortYear < 50 ? 2000 + shortYear : 1900 + shortYear;
     const period = parseInt(match1[2], 10);
     return { year, period, fullPeriod: periodNumber };
   }

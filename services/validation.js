@@ -105,16 +105,16 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   );
   
   // 計算各指標的分數排名
-  const sortedByFrequency = allNumbers.sort((a, b) => 
+  const sortedByFrequency = [...allNumbers].sort((a, b) =>
     analysisDetails.frequency[b] - analysisDetails.frequency[a]
   );
-  const sortedByWeightedFrequency = allNumbers.sort((a, b) => 
+  const sortedByWeightedFrequency = [...allNumbers].sort((a, b) =>
     analysisDetails.weightedFrequency[b] - analysisDetails.weightedFrequency[a]
   );
-  const sortedByGap = allNumbers.sort((a, b) => 
+  const sortedByGap = [...allNumbers].sort((a, b) =>
     analysisDetails.gapScore[b] - analysisDetails.gapScore[a]
   );
-  const sortedByPattern = allNumbers.sort((a, b) => 
+  const sortedByPattern = [...allNumbers].sort((a, b) =>
     analysisDetails.patternScore[b] - analysisDetails.patternScore[a]
   );
   
@@ -150,7 +150,7 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   let performanceFibonacci = 0;
   
   if (analysisDetails.distributionScore) {
-    const sortedByDistribution = allNumbers.sort((a, b) => 
+    const sortedByDistribution = [...allNumbers].sort((a, b) => 
       analysisDetails.distributionScore[b] - analysisDetails.distributionScore[a]
     );
     const hitRankDistribution = calculateAverageRank(hitNumbers, sortedByDistribution);
@@ -159,7 +159,7 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   }
   
   if (analysisDetails.trendScore) {
-    const sortedByTrend = allNumbers.sort((a, b) => 
+    const sortedByTrend = [...allNumbers].sort((a, b) => 
       analysisDetails.trendScore[b] - analysisDetails.trendScore[a]
     );
     const hitRankTrend = calculateAverageRank(hitNumbers, sortedByTrend);
@@ -168,7 +168,7 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   }
   
   if (analysisDetails.chiSquare && analysisDetails.chiSquare.scores) {
-    const sortedByChiSquare = allNumbers.sort((a, b) => 
+    const sortedByChiSquare = [...allNumbers].sort((a, b) => 
       analysisDetails.chiSquare.scores[b] - analysisDetails.chiSquare.scores[a]
     );
     const hitRankChiSquare = calculateAverageRank(hitNumbers, sortedByChiSquare);
@@ -177,7 +177,7 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   }
   
   if (analysisDetails.poisson && analysisDetails.poisson.scores) {
-    const sortedByPoisson = allNumbers.sort((a, b) => 
+    const sortedByPoisson = [...allNumbers].sort((a, b) => 
       analysisDetails.poisson.scores[b] - analysisDetails.poisson.scores[a]
     );
     const hitRankPoisson = calculateAverageRank(hitNumbers, sortedByPoisson);
@@ -186,7 +186,7 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   }
   
   if (analysisDetails.fibonacci && analysisDetails.fibonacci.scores) {
-    const sortedByFibonacci = allNumbers.sort((a, b) => 
+    const sortedByFibonacci = [...allNumbers].sort((a, b) => 
       analysisDetails.fibonacci.scores[b] - analysisDetails.fibonacci.scores[a]
     );
     const hitRankFibonacci = calculateAverageRank(hitNumbers, sortedByFibonacci);
