@@ -12,19 +12,24 @@
 - 自動按日期排序（最新的在前）
 
 ### 2. 統計分析
-系統使用四種統計方法進行綜合分析：
+系統使用九種統計方法進行綜合分析：
 
 - **頻率分析 (Frequency Analysis)**: 統計每個號碼（1-49）在歷史資料中出現的總次數
 - **加權頻率分析 (Weighted Frequency)**: 近期出現的號碼權重更高，使用指數衰減模型（每往前一期權重減少 5%）
 - **間隔分析 (Gap Analysis)**: 計算每個號碼距離上次出現的期數，間隔越長分數越高
 - **模式分析 (Pattern Analysis)**: 分析最近 10 期的出現模式，識別連續出現或交替出現的趨勢
+- **分布分析 (Distribution Analysis)**: 分析號碼在 1-49 範圍內的分布均勻度，識別分布不均的區域
+- **趨勢分析 (Trend Analysis)**: 分析號碼出現的趨勢變化，識別上升或下降趨勢
+- **卡方檢驗 (Chi-Square Test)**: 使用統計學方法檢驗號碼出現是否符合均勻分布
+- **泊松分布分析 (Poisson Analysis)**: 使用泊松分布模型分析號碼出現的機率
+- **斐波那契分析 (Fibonacci Analysis)**: 基於斐波那契數列和黃金比例分析號碼出現模式
 
 ### 3. 智能預測
-- **綜合評分系統**: 將四種分析方法的分數正規化後加權組合，產生綜合預測分數
-- **可自訂權重**: 支援自訂各分析方法的權重比例（預設：頻率 30%、加權頻率 35%、間隔 20%、模式 15%）
-- **Top 15 預測**: 返回綜合分數最高的前 15 個號碼，提高預測覆蓋率
+- **綜合評分系統**: 將九種分析方法的分數正規化後加權組合，產生綜合預測分數
+- **可自訂權重**: 支援自訂各分析方法的權重比例（預設：頻率 10%、加權頻率 14%、間隔 14%、模式 8%、分布 14%、趨勢 12%、卡方 4%、泊松 4%、斐波那契 12%）
+- **Top 40 候選**: 返回綜合分數最高的前 40 個號碼作為候選，提高預測覆蓋率
 - **複式投注建議**: 提供兩種複式投注方案
-  - **完整複式建議**: 使用縮減輪轉系統，以較少注數覆蓋所有 15 個預測號碼
+  - **完整複式建議**: 使用縮減輪轉系統，以較少注數覆蓋所有預測號碼
   - **$100 複式建議**: 精選 10 注組合（總金額 $100），適合預算有限的投注者
 
 ### 4. 迭代驗證
@@ -55,7 +60,13 @@ mark-six-statistics/
 │   └── lottery.js             # 彩券相關 API 路由
 ├── services/
 │   ├── lotteryService.js      # 資料抓取服務（網頁爬蟲）
-│   └── analysisService.js     # 統計分析與預測服務
+│   ├── analysisService.js     # 統計分析與預測服務（主協調器）
+│   ├── calculators.js         # 統計計算函數（頻率、加權、間隔、模式、分布、趨勢、卡方、泊松）
+│   ├── fibonacci.js           # 斐波那契數列分析
+│   ├── selectionStrategies.js # 號碼選擇策略
+│   ├── betting.js             # 投注建議生成
+│   ├── validation.js          # 驗證和權重調整
+│   └── utils.js               # 工具函數（數據提取、期數解析）
 └── public/
     └── index.html             # 前端單頁應用程式
 ```
@@ -153,10 +164,15 @@ docker run -p 8080:8080 mark-six-statistics
     }
   ],
   "weights": {
-    "frequency": 0.30,
-    "weightedFrequency": 0.35,
-    "gap": 0.20,
-    "pattern": 0.15
+    "frequency": 0.10,
+    "weightedFrequency": 0.14,
+    "gap": 0.14,
+    "pattern": 0.08,
+    "distribution": 0.14,
+    "trend": 0.12,
+    "chiSquare": 0.04,
+    "poisson": 0.04,
+    "fibonacci": 0.12
   }
 }
 ```
@@ -173,7 +189,12 @@ docker run -p 8080:8080 mark-six-statistics
         "frequency": 45,
         "weightedFrequency": 12.34,
         "gapScore": 23.45,
-        "patternScore": 18.67
+        "patternScore": 18.67,
+        "distributionScore": 15.23,
+        "trendScore": 14.56,
+        "chiSquareScore": 6.78,
+        "poissonScore": 5.43,
+        "fibonacciScore": 12.89
       }
     ],
     "stats": {
@@ -213,6 +234,24 @@ docker run -p 8080:8080 mark-six-statistics
       "weightedFrequency": { "1": 5.2, "2": 6.1, ... },
       "gapScore": { "1": 15.3, "2": 18.7, ... },
       "patternScore": { "1": 8.5, "2": 9.2, ... },
+      "distributionFeatures": { ... },
+      "distributionScore": { "1": 12.3, "2": 14.5, ... },
+      "trendScore": { "1": 8.9, "2": 10.2, ... },
+      "chiSquare": {
+        "scores": { "1": 5.1, "2": 6.3, ... },
+        "chiSquare": 45.23,
+        "degreesOfFreedom": 48,
+        "expectedFrequency": 12.24
+      },
+      "poisson": {
+        "scores": { "1": 4.8, "2": 5.9, ... },
+        "lambda": 12.24
+      },
+      "fibonacci": {
+        "scores": { "1": 7.2, "2": 8.1, ... },
+        "fibonacciSequence": [1, 1, 2, 3, 5, 8, 13, 21, 34],
+        "goldenRatio": 1.618
+      },
       "compositeScore": { "1": 45.6, "2": 52.3, ... }
     }
   }
@@ -256,18 +295,28 @@ docker run -p 8080:8080 mark-six-statistics
           "coverage": 16.67
         },
         "weights": {
-          "frequency": 0.30,
-          "weightedFrequency": 0.35,
-          "gap": 0.20,
-          "pattern": 0.15
+          "frequency": 0.10,
+          "weightedFrequency": 0.14,
+          "gap": 0.14,
+          "pattern": 0.08,
+          "distribution": 0.14,
+          "trend": 0.12,
+          "chiSquare": 0.04,
+          "poisson": 0.04,
+          "fibonacci": 0.12
         }
       }
     ],
     "finalWeights": {
-      "frequency": 0.28,
-      "weightedFrequency": 0.37,
-      "gap": 0.22,
-      "pattern": 0.13
+      "frequency": 0.10,
+      "weightedFrequency": 0.14,
+      "gap": 0.14,
+      "pattern": 0.08,
+      "distribution": 0.14,
+      "trend": 0.12,
+      "chiSquare": 0.04,
+      "poisson": 0.04,
+      "fibonacci": 0.12
     },
     "statistics": {
       "totalHits": 30,
@@ -304,33 +353,61 @@ docker run -p 8080:8080 mark-six-statistics
 
 ## 分析演算法詳解
 
-### 1. 頻率分析
+### 1. 頻率分析 (Frequency Analysis)
 統計每個號碼在歷史資料中出現的總次數。出現次數越多的號碼，分數越高。
 
-### 2. 加權頻率分析
+### 2. 加權頻率分析 (Weighted Frequency)
 考慮時間因素，近期出現的號碼權重更高。使用指數衰減模型：
 - 最新一期權重為 1.0
 - 每往前一期權重減少 5%（權重 = 0.95^(總期數 - 索引 - 1)）
 
-### 3. 間隔分析
+### 3. 間隔分析 (Gap Analysis)
 計算每個號碼距離上次出現的期數。間隔越長，分數越高（表示「該出現了」）。
 使用對數函數平滑化：`gapScore = log(gap + 1) * 10`
 
-### 4. 模式分析
+### 4. 模式分析 (Pattern Analysis)
 分析最近 10 期的出現模式，識別連續出現或交替出現的趨勢。
 越近期的期數權重越高：`weight = 1 / (index + 1)`
 
-### 5. 綜合評分
-將四種分析方法的分數正規化到 0-100 範圍，然後加權組合：
+### 5. 分布分析 (Distribution Analysis)
+分析號碼在 1-49 範圍內的分布均勻度，將範圍分成多個區間，計算每個號碼所在區間的分布密度。
+分布不均的區域（過多或過少號碼）會得到不同的分數。
+
+### 6. 趨勢分析 (Trend Analysis)
+分析號碼出現的趨勢變化，計算最近 N 期與更早 N 期的出現頻率差異。
+識別上升趨勢（近期出現頻率增加）或下降趨勢（近期出現頻率減少）。
+
+### 7. 卡方檢驗 (Chi-Square Test)
+使用統計學的卡方檢驗方法，檢驗號碼出現是否符合均勻分布。
+計算期望頻率和實際頻率的差異，偏差越大分數越高。
+
+### 8. 泊松分布分析 (Poisson Analysis)
+使用泊松分布模型分析號碼出現的機率。
+計算每個號碼的泊松機率，並根據實際出現次數與期望值的差異評分。
+
+### 9. 斐波那契分析 (Fibonacci Analysis)
+基於斐波那契數列和黃金比例（約 1.618）分析號碼出現模式：
+- 分析號碼是否為斐波那契數列成員
+- 分析號碼間隔是否符合斐波那契數列
+- 分析號碼位置關係是否符合黃金比例
+- 分析週期性模式
+
+### 10. 綜合評分
+將九種分析方法的分數正規化到 0-100 範圍，然後加權組合：
 ```
 compositeScore = 
   normalizedFrequency * weight_frequency +
   normalizedWeightedFrequency * weight_weightedFrequency +
   normalizedGapScore * weight_gap +
-  normalizedPatternScore * weight_pattern
+  normalizedPatternScore * weight_pattern +
+  normalizedDistributionScore * weight_distribution +
+  normalizedTrendScore * weight_trend +
+  normalizedChiSquareScore * weight_chiSquare +
+  normalizedPoissonScore * weight_poisson +
+  normalizedFibonacciScore * weight_fibonacci
 ```
 
-### 6. 智能學習
+### 11. 智能學習
 在迭代驗證過程中，系統會：
 1. 分析命中號碼和未命中號碼在各指標中的排名
 2. 計算各指標的效能分數
@@ -343,7 +420,7 @@ compositeScore =
 系統提供兩種複式投注建議方案：
 
 #### 完整複式建議（縮減輪轉系統）
-- **策略**: 將 15 個預測號碼分成核心組（前 7 個）和外圍組（後 8 個）
+- **策略**: 從 Top 40 候選號碼中選擇前 15 個，分成核心組（前 7 個）和外圍組（後 8 個）
 - **組合方式**:
   - 核心組選 6 個（C(7,6) = 7 注）
   - 核心組選 5 個 + 外圍組選 1 個（精選組合）
@@ -353,7 +430,7 @@ compositeScore =
 - **優勢**: 相比完整複式投注（C(15,6) = 5005 注）大幅減少注數，同時確保覆蓋所有 15 個號碼
 
 #### $100 複式建議（精選組合）
-- **策略**: 使用精選組合策略，生成恰好 10 注（$100）的投注方案
+- **策略**: 從 Top 40 候選號碼中選擇前 15 個，使用精選組合策略，生成恰好 10 注（$100）的投注方案
 - **組合方式**:
   - 核心組選 6 個（2 注）
   - 核心組選 5 個 + 外圍組選 1 個（4 注，確保外圍號碼均勻分布）
