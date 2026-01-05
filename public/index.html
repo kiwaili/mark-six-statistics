@@ -116,6 +116,32 @@
             padding: 20px;
             color: #667eea;
             font-size: 18px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 18px;
+            font-weight: 600;
+            color: #667eea;
         }
 
         .error {
@@ -398,7 +424,8 @@
         </div>
 
         <div id="loading" class="loading" style="display: none;">
-            正在取得資料...
+            <div class="spinner"></div>
+            <div class="loading-text" id="loadingText">正在處理中...</div>
         </div>
 
         <div id="error" class="error" style="display: none;"></div>
@@ -409,6 +436,47 @@
     <script>
         // 儲存當前結果資料
         let currentResults = [];
+
+        /**
+         * 解析期數字串為年份和期數對象
+         * 支援格式：25/132 (年份/期數) 或 2025001 (年份+期數)
+         * @param {string} periodNumber - 期數字串
+         * @param {Object} options - 選項
+         * @param {boolean} options.convertYear - 是否將2位數年份轉換為4位數（默認false）
+         * @param {boolean} options.returnNull - 解析失敗時返回null而不是默認值（默認false）
+         * @returns {Object|null} {year: number, period: number} 或 null
+         */
+        function parsePeriodNumber(periodNumber, options = {}) {
+            const { convertYear = false, returnNull = false } = options;
+            
+            if (!periodNumber) {
+                return returnNull ? null : { year: 0, period: 0 };
+            }
+            
+            // 格式 25/132 (年份/期數)
+            const match1 = periodNumber.match(/^(\d{2})\/(\d+)$/);
+            if (match1) {
+                let year = parseInt(match1[1], 10);
+                const period = parseInt(match1[2], 10);
+                
+                // 如果需要轉換年份，將2位數年份轉換為4位數（假設25代表2025）
+                if (convertYear) {
+                    year = year < 50 ? 2000 + year : 1900 + year;
+                }
+                
+                return { year: year, period: period };
+            }
+            
+            // 格式 2025001 (年份+期數) 或 2025001 (年份+3位期數)
+            const match2 = periodNumber.match(/^(\d{4})(\d+)$/);
+            if (match2) {
+                const year = parseInt(match2[1], 10);
+                const period = parseInt(match2[2], 10);
+                return { year: year, period: period };
+            }
+            
+            return returnNull ? null : { year: 0, period: 0 };
+        }
 
         // 初始化年份選擇器，預設為今年
         document.addEventListener('DOMContentLoaded', function() {
@@ -440,7 +508,8 @@
 
             // 重置狀態
             button.disabled = true;
-            loading.style.display = 'block';
+            loading.style.display = 'flex';
+            document.getElementById('loadingText').textContent = '正在取得資料...';
             error.style.display = 'none';
             resultsContainer.innerHTML = '';
             // Hide analysis, validation and prediction buttons when fetching new data
@@ -540,6 +609,7 @@
             const analysisButton = document.getElementById('analysisButton');
             const error = document.getElementById('error');
             const resultsContainer = document.getElementById('resultsContainer');
+            const loading = document.getElementById('loading');
             
             if (currentResults.length === 0) {
                 error.textContent = '錯誤: 請先取得攪珠結果';
@@ -550,6 +620,8 @@
             // 重置狀態
             analysisButton.disabled = true;
             error.style.display = 'none';
+            loading.style.display = 'flex';
+            document.getElementById('loadingText').textContent = '正在分析號碼...';
             
             try {
                 const response = await fetch('/api/lottery/analyze', {
@@ -574,6 +646,7 @@
                 error.style.display = 'block';
             } finally {
                 analysisButton.disabled = false;
+                loading.style.display = 'none';
             }
         }
         
@@ -703,8 +776,8 @@
             // 重置狀態
             validateButton.disabled = true;
             error.style.display = 'none';
-            loading.style.display = 'block';
-            loading.textContent = '正在進行迭代驗證...';
+            loading.style.display = 'flex';
+            document.getElementById('loadingText').textContent = '正在進行迭代驗證...（這可能需要一些時間）';
             
             try {
                 const response = await fetch('/api/lottery/validate', {
@@ -760,17 +833,44 @@
                         </div>
                         <div style="background: white; padding: 15px; border-radius: 8px;">
                             <div style="font-size: 12px; color: #666; margin-bottom: 5px;">平均每期命中數</div>
-                            <div style="font-size: 24px; font-weight: bold; color: #667eea;">${Math.round(validationData.statistics.averageHitsPerPeriod * 100) / 100}</div>
+                            <div style="font-size: 24px; font-weight: bold; color: ${validationData.statistics.meetsHitCountTarget ? '#28a745' : '#dc3545'};">
+                                ${Math.round(validationData.statistics.averageHitsPerPeriod * 100) / 100}
+                                <span style="font-size: 12px; color: #666;">/ ${validationData.statistics.targetAverageHitCount}</span>
+                            </div>
+                            ${validationData.statistics.meetsHitCountTarget ? 
+                                '<div style="font-size: 11px; color: #28a745; margin-top: 5px;">✓ 達標</div>' : 
+                                `<div style="font-size: 11px; color: #dc3545; margin-top: 5px;">✗ ${validationData.statistics.targetSummary?.averageHitCount?.status || '未達標'}</div>`
+                            }
                         </div>
                         <div style="background: white; padding: 15px; border-radius: 8px;">
                             <div style="font-size: 12px; color: #666; margin-bottom: 5px;">平均準確率</div>
-                            <div style="font-size: 24px; font-weight: bold; color: #667eea;">${validationData.statistics.averageAccuracy}%</div>
+                            <div style="font-size: 24px; font-weight: bold; color: ${validationData.statistics.meetsAccuracyTarget ? '#28a745' : '#dc3545'};">
+                                ${validationData.statistics.averageAccuracy}%
+                                <span style="font-size: 12px; color: #666;">/ ${validationData.statistics.targetAverageAccuracy}%</span>
+                            </div>
+                            ${validationData.statistics.meetsAccuracyTarget ? 
+                                '<div style="font-size: 11px; color: #28a745; margin-top: 5px;">✓ 達標</div>' : 
+                                `<div style="font-size: 11px; color: #dc3545; margin-top: 5px;">✗ ${validationData.statistics.targetSummary?.averageAccuracy?.status || '未達標'}</div>`
+                            }
                         </div>
                         <div style="background: white; padding: 15px; border-radius: 8px;">
                             <div style="font-size: 12px; color: #666; margin-bottom: 5px;">平均覆蓋率</div>
                             <div style="font-size: 24px; font-weight: bold; color: #667eea;">${validationData.statistics.averageCoverage}%</div>
                         </div>
                     </div>
+                    ${validationData.statistics.targetSummary ? `
+                    <div style="margin-top: 20px; padding: 15px; background: ${validationData.statistics.meetsAllTargets ? '#d4edda' : '#f8d7da'}; border-radius: 8px; border-left: 4px solid ${validationData.statistics.meetsAllTargets ? '#28a745' : '#dc3545'};">
+                        <h4 style="color: ${validationData.statistics.meetsAllTargets ? '#155724' : '#721c24'}; margin-bottom: 10px;">
+                            ${validationData.statistics.meetsAllTargets ? '✓ 所有目標已達成' : '✗ 部分目標未達成'}
+                        </h4>
+                        <div style="font-size: 14px; color: ${validationData.statistics.meetsAllTargets ? '#155724' : '#721c24'};">
+                            <p><strong>平均命中數:</strong> ${validationData.statistics.targetSummary.averageHitCount.current} / ${validationData.statistics.targetSummary.averageHitCount.target} 
+                            ${validationData.statistics.targetSummary.averageHitCount.meetsTarget ? '✓' : `(${validationData.statistics.targetSummary.averageHitCount.status})`}</p>
+                            <p><strong>平均準確率:</strong> ${validationData.statistics.targetSummary.averageAccuracy.current}% / ${validationData.statistics.targetSummary.averageAccuracy.target}% 
+                            ${validationData.statistics.targetSummary.averageAccuracy.meetsTarget ? '✓' : `(${validationData.statistics.targetSummary.averageAccuracy.status})`}</p>
+                        </div>
+                    </div>
+                    ` : ''}
                 </div>
                 
                 <div style="margin-top: 30px; background: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;">
@@ -813,29 +913,9 @@
                             <tbody>
             `;
             
-            // 解析期數以便排序（支援格式：25/132 或 2025001）
+            // 使用共享的期數解析函數（用於排序，需要轉換年份）
             const parsePeriodForSort = (periodNumber) => {
-                if (!periodNumber) return { year: 0, period: 0 };
-                
-                // 格式 25/132 (年份/期數)
-                const match1 = periodNumber.match(/^(\d{2})\/(\d+)$/);
-                if (match1) {
-                    const year = parseInt(match1[1], 10);
-                    const period = parseInt(match1[2], 10);
-                    // 將2位數年份轉換為4位數（假設25代表2025）
-                    const fullYear = year < 50 ? 2000 + year : 1900 + year;
-                    return { year: fullYear, period: period };
-                }
-                
-                // 格式 2025001 (年份+期數)
-                const match2 = periodNumber.match(/^(\d{4})(\d+)$/);
-                if (match2) {
-                    const year = parseInt(match2[1], 10);
-                    const period = parseInt(match2[2], 10);
-                    return { year: year, period: period };
-                }
-                
-                return { year: 0, period: 0 };
+                return parsePeriodNumber(periodNumber, { convertYear: true });
             };
             
             // 比較兩個期數，用於排序（新至舊：較新的期數排在前面）
@@ -925,8 +1005,8 @@
             // 重置狀態
             predictButton.disabled = true;
             error.style.display = 'none';
-            loading.style.display = 'block';
-            loading.textContent = '正在分析並預測下一期號碼...';
+            loading.style.display = 'flex';
+            document.getElementById('loadingText').textContent = '正在分析並預測下一期號碼...';
             
             try {
                 // 使用所有歷史數據進行預測
@@ -963,17 +1043,9 @@
             // 獲取最新期數
             const latestPeriod = latestResult.periodNumber;
             
-            // 解析期數以計算下一期
+            // 使用共享的期數解析函數（用於計算下一期，不需要轉換年份，失敗時返回null）
             const parsePeriod = (periodStr) => {
-                const match1 = periodStr.match(/^(\d{2})\/(\d+)$/);
-                if (match1) {
-                    return { year: parseInt(match1[1], 10), period: parseInt(match1[2], 10) };
-                }
-                const match2 = periodStr.match(/^(\d{4})(\d{3})$/);
-                if (match2) {
-                    return { year: parseInt(match2[1], 10), period: parseInt(match2[2], 10) };
-                }
-                return null;
+                return parsePeriodNumber(periodStr, { convertYear: false, returnNull: true });
             };
             
             const currentPeriod = parsePeriod(latestPeriod);
