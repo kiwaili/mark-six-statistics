@@ -100,9 +100,6 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   
   // 分析命中號碼在各指標中的排名
   const allNumbers = Object.keys(analysisDetails.compositeScore).map(n => parseInt(n, 10));
-  const sortedByComposite = allNumbers.sort((a, b) => 
-    analysisDetails.compositeScore[b] - analysisDetails.compositeScore[a]
-  );
   
   // 計算各指標的分數排名
   const sortedByFrequency = [...allNumbers].sort((a, b) =>
