@@ -65,12 +65,12 @@ router.post('/analyze', async (req, res) => {
 /**
  * 迭代驗證分析：從最新期數往前推N期開始，逐步驗證並調整
  * POST /api/lottery/validate
- * Body: { results: [...], lookbackPeriods: 10 }
+ * Body: { results: [...], lookbackPeriods: 100 }
  */
 router.post('/validate', async (req, res) => {
   try {
     const results = req.body.results;
-    const lookbackPeriods = req.body.lookbackPeriods || 10;
+    const lookbackPeriods = req.body.lookbackPeriods || 100;
     
     if (!results || !Array.isArray(results) || results.length === 0) {
       return res.status(400).json({

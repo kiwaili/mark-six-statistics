@@ -95,7 +95,11 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
     trend: 0,
     chiSquare: 0,
     poisson: 0,
-    fibonacci: 0
+    fibonacci: 0,
+    correlation: 0,
+    entropy: 0,
+    markov: 0,
+    combinatorial: 0
   };
   
   // 分析命中號碼在各指標中的排名
@@ -145,6 +149,10 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   let performanceChiSquare = 0;
   let performancePoisson = 0;
   let performanceFibonacci = 0;
+  let performanceCorrelation = 0;
+  let performanceEntropy = 0;
+  let performanceMarkov = 0;
+  let performanceCombinatorial = 0;
   
   if (analysisDetails.distributionScore) {
     const sortedByDistribution = [...allNumbers].sort((a, b) => 
@@ -191,6 +199,42 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
     performanceFibonacci = (1 / hitRankFibonacci) - (1 / missRankFibonacci);
   }
   
+  if (analysisDetails.correlation && analysisDetails.correlation.scores) {
+    const sortedByCorrelation = [...allNumbers].sort((a, b) => 
+      analysisDetails.correlation.scores[b] - analysisDetails.correlation.scores[a]
+    );
+    const hitRankCorrelation = calculateAverageRank(hitNumbers, sortedByCorrelation);
+    const missRankCorrelation = calculateAverageRank(missNumbers, sortedByCorrelation);
+    performanceCorrelation = (1 / hitRankCorrelation) - (1 / missRankCorrelation);
+  }
+  
+  if (analysisDetails.entropy && analysisDetails.entropy.scores) {
+    const sortedByEntropy = [...allNumbers].sort((a, b) => 
+      analysisDetails.entropy.scores[b] - analysisDetails.entropy.scores[a]
+    );
+    const hitRankEntropy = calculateAverageRank(hitNumbers, sortedByEntropy);
+    const missRankEntropy = calculateAverageRank(missNumbers, sortedByEntropy);
+    performanceEntropy = (1 / hitRankEntropy) - (1 / missRankEntropy);
+  }
+  
+  if (analysisDetails.markov && analysisDetails.markov.scores) {
+    const sortedByMarkov = [...allNumbers].sort((a, b) => 
+      analysisDetails.markov.scores[b] - analysisDetails.markov.scores[a]
+    );
+    const hitRankMarkov = calculateAverageRank(hitNumbers, sortedByMarkov);
+    const missRankMarkov = calculateAverageRank(missNumbers, sortedByMarkov);
+    performanceMarkov = (1 / hitRankMarkov) - (1 / missRankMarkov);
+  }
+  
+  if (analysisDetails.combinatorial && analysisDetails.combinatorial.scores) {
+    const sortedByCombinatorial = [...allNumbers].sort((a, b) => 
+      analysisDetails.combinatorial.scores[b] - analysisDetails.combinatorial.scores[a]
+    );
+    const hitRankCombinatorial = calculateAverageRank(hitNumbers, sortedByCombinatorial);
+    const missRankCombinatorial = calculateAverageRank(missNumbers, sortedByCombinatorial);
+    performanceCombinatorial = (1 / hitRankCombinatorial) - (1 / missRankCombinatorial);
+  }
+  
   // 計算總效能（用於正規化）
   const totalPerformance = Math.abs(performanceFrequency) + 
                           Math.abs(performanceWeightedFrequency) + 
@@ -200,7 +244,11 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
                           Math.abs(performanceTrend) +
                           Math.abs(performanceChiSquare) +
                           Math.abs(performancePoisson) +
-                          Math.abs(performanceFibonacci);
+                          Math.abs(performanceFibonacci) +
+                          Math.abs(performanceCorrelation) +
+                          Math.abs(performanceEntropy) +
+                          Math.abs(performanceMarkov) +
+                          Math.abs(performanceCombinatorial);
   
   // 根據準確率差距和指標表現調整權重
   // 動態學習率：準確率差距越大，學習率越高
@@ -218,11 +266,15 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   const adjustmentFactor = (accuracyGap / 80) + (hitCountGap > 0 ? hitCountGap * 0.3 : 0); // 更積極的調整幅度，準確率權重更高
   
   // 初始化新權重（如果不存在）
-  if (newWeights.distribution === undefined) newWeights.distribution = 0.15;
-  if (newWeights.trend === undefined) newWeights.trend = 0.10;
-  if (newWeights.chiSquare === undefined) newWeights.chiSquare = 0.05;
-  if (newWeights.poisson === undefined) newWeights.poisson = 0.05;
-  if (newWeights.fibonacci === undefined) newWeights.fibonacci = 0.12;  // 與默認權重保持一致
+  if (newWeights.distribution === undefined) newWeights.distribution = 0.10;
+  if (newWeights.trend === undefined) newWeights.trend = 0.09;
+  if (newWeights.chiSquare === undefined) newWeights.chiSquare = 0.03;
+  if (newWeights.poisson === undefined) newWeights.poisson = 0.03;
+  if (newWeights.fibonacci === undefined) newWeights.fibonacci = 0.08;
+  if (newWeights.correlation === undefined) newWeights.correlation = 0.08;
+  if (newWeights.entropy === undefined) newWeights.entropy = 0.06;
+  if (newWeights.markov === undefined) newWeights.markov = 0.10;
+  if (newWeights.combinatorial === undefined) newWeights.combinatorial = 0.09;
   
   if (totalPerformance > 0) {
     // 優先處理命中數不足的情況（命中數至少3是硬性要求）
@@ -259,6 +311,18 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
       if (performanceFibonacci > 0 && analysisDetails.fibonacci) {
         newWeights.fibonacci += learningRate * adjustmentFactor * criticalMultiplier * (performanceFibonacci / totalPerformance);
       }
+      if (performanceCorrelation > 0 && analysisDetails.correlation) {
+        newWeights.correlation += learningRate * adjustmentFactor * criticalMultiplier * (performanceCorrelation / totalPerformance);
+      }
+      if (performanceEntropy > 0 && analysisDetails.entropy) {
+        newWeights.entropy += learningRate * adjustmentFactor * criticalMultiplier * (performanceEntropy / totalPerformance);
+      }
+      if (performanceMarkov > 0 && analysisDetails.markov) {
+        newWeights.markov += learningRate * adjustmentFactor * criticalMultiplier * (performanceMarkov / totalPerformance);
+      }
+      if (performanceCombinatorial > 0 && analysisDetails.combinatorial) {
+        newWeights.combinatorial += learningRate * adjustmentFactor * criticalMultiplier * (performanceCombinatorial / totalPerformance);
+      }
       
       // 減少表現差的指標權重（命中數不足時更積極）
       const reductionMultiplier = isHitCountCritical ? 1.2 : 1.0;
@@ -289,6 +353,18 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
       if (performanceFibonacci < 0 && analysisDetails.fibonacci) {
         newWeights.fibonacci = Math.max(0.05, newWeights.fibonacci - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performanceFibonacci) / totalPerformance));
       }
+      if (performanceCorrelation < 0 && analysisDetails.correlation) {
+        newWeights.correlation = Math.max(0.05, newWeights.correlation - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performanceCorrelation) / totalPerformance));
+      }
+      if (performanceEntropy < 0 && analysisDetails.entropy) {
+        newWeights.entropy = Math.max(0.05, newWeights.entropy - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performanceEntropy) / totalPerformance));
+      }
+      if (performanceMarkov < 0 && analysisDetails.markov) {
+        newWeights.markov = Math.max(0.05, newWeights.markov - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performanceMarkov) / totalPerformance));
+      }
+      if (performanceCombinatorial < 0 && analysisDetails.combinatorial) {
+        newWeights.combinatorial = Math.max(0.05, newWeights.combinatorial - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performanceCombinatorial) / totalPerformance));
+      }
     } else {
       // 如果準確率已達標，微調以保持或進一步提升至更高準確率
       // 即使已達標，也要繼續優化以提高準確率
@@ -302,7 +378,11 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
         { name: 'trend', value: performanceTrend, available: !!analysisDetails.trendScore },
         { name: 'chiSquare', value: performanceChiSquare, available: !!analysisDetails.chiSquare },
         { name: 'poisson', value: performancePoisson, available: !!analysisDetails.poisson },
-        { name: 'fibonacci', value: performanceFibonacci, available: !!analysisDetails.fibonacci }
+        { name: 'fibonacci', value: performanceFibonacci, available: !!analysisDetails.fibonacci },
+        { name: 'correlation', value: performanceCorrelation, available: !!analysisDetails.correlation },
+        { name: 'entropy', value: performanceEntropy, available: !!analysisDetails.entropy },
+        { name: 'markov', value: performanceMarkov, available: !!analysisDetails.markov },
+        { name: 'combinatorial', value: performanceCombinatorial, available: !!analysisDetails.combinatorial }
       ].filter(p => p.available !== false);
       
       // 選擇表現最好的前2個指標，給予更多權重
@@ -350,20 +430,25 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   }
   
   // 確保權重範圍合理
-  newWeights.frequency = Math.max(0.05, Math.min(0.5, newWeights.frequency || 0.15));
-  newWeights.weightedFrequency = Math.max(0.05, Math.min(0.5, newWeights.weightedFrequency || 0.2));
-  newWeights.gap = Math.max(0.05, Math.min(0.5, newWeights.gap || 0.2));
-  newWeights.pattern = Math.max(0.05, Math.min(0.5, newWeights.pattern || 0.1));
-  newWeights.distribution = Math.max(0.05, Math.min(0.5, newWeights.distribution || 0.15));
-  newWeights.trend = Math.max(0.05, Math.min(0.5, newWeights.trend || 0.1));
-  newWeights.chiSquare = Math.max(0.05, Math.min(0.5, newWeights.chiSquare || 0.05));
-  newWeights.poisson = Math.max(0.05, Math.min(0.5, newWeights.poisson || 0.05));
-  newWeights.fibonacci = Math.max(0.05, Math.min(0.5, newWeights.fibonacci || 0.12));  // 與默認權重保持一致
+  newWeights.frequency = Math.max(0.05, Math.min(0.5, newWeights.frequency || 0.08));
+  newWeights.weightedFrequency = Math.max(0.05, Math.min(0.5, newWeights.weightedFrequency || 0.10));
+  newWeights.gap = Math.max(0.05, Math.min(0.5, newWeights.gap || 0.10));
+  newWeights.pattern = Math.max(0.05, Math.min(0.5, newWeights.pattern || 0.06));
+  newWeights.distribution = Math.max(0.05, Math.min(0.5, newWeights.distribution || 0.10));
+  newWeights.trend = Math.max(0.05, Math.min(0.5, newWeights.trend || 0.09));
+  newWeights.chiSquare = Math.max(0.05, Math.min(0.5, newWeights.chiSquare || 0.03));
+  newWeights.poisson = Math.max(0.05, Math.min(0.5, newWeights.poisson || 0.03));
+  newWeights.fibonacci = Math.max(0.05, Math.min(0.5, newWeights.fibonacci || 0.08));
+  newWeights.correlation = Math.max(0.05, Math.min(0.5, newWeights.correlation || 0.08));
+  newWeights.entropy = Math.max(0.05, Math.min(0.5, newWeights.entropy || 0.06));
+  newWeights.markov = Math.max(0.05, Math.min(0.5, newWeights.markov || 0.10));
+  newWeights.combinatorial = Math.max(0.05, Math.min(0.5, newWeights.combinatorial || 0.09));
   
   // 正規化權重，確保總和為1
   const totalWeight = (newWeights.frequency || 0) + (newWeights.weightedFrequency || 0) + (newWeights.gap || 0) + 
                       (newWeights.pattern || 0) + (newWeights.distribution || 0) + (newWeights.trend || 0) + 
-                      (newWeights.chiSquare || 0) + (newWeights.poisson || 0) + (newWeights.fibonacci || 0);
+                      (newWeights.chiSquare || 0) + (newWeights.poisson || 0) + (newWeights.fibonacci || 0) +
+                      (newWeights.correlation || 0) + (newWeights.entropy || 0) + (newWeights.markov || 0) + (newWeights.combinatorial || 0);
   if (totalWeight > 0) {
     Object.keys(newWeights).forEach(key => {
       newWeights[key] = newWeights[key] / totalWeight;
@@ -376,10 +461,10 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
 /**
  * 迭代驗證分析：從最新期數往前推10期開始，逐步驗證並調整
  * @param {Array} allResults - 所有攪珠結果（已按日期排序，最新的在前）
- * @param {number} lookbackPeriods - 往前推的期數（預設10）
+ * @param {number} lookbackPeriods - 往前推的期數（預設100）
  * @returns {Object} 驗證結果
  */
-function iterativeValidation(allResults, lookbackPeriods = 10) {
+function iterativeValidation(allResults, lookbackPeriods = 100) {
   if (!analyzeNumbers) {
     throw new Error('analyzeNumbers 函數未設置。請先調用 setAnalyzeNumbers()');
   }
@@ -405,14 +490,24 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
   // 使用多組初始權重進行測試，選擇最佳的一組
   // 優化目標：提高準確率至50%，更重視趨勢、分布和間隔分析
   // 目標：平均每期命中數至少3，準確率至少50%
+  // 包含所有13種統計方法的權重配置
   const initialWeightSets = [
-    { frequency: 0.10, weightedFrequency: 0.16, gap: 0.20, pattern: 0.10, distribution: 0.18, trend: 0.16, chiSquare: 0.05, poisson: 0.03, fibonacci: 0.12 },
-    { frequency: 0.08, weightedFrequency: 0.18, gap: 0.20, pattern: 0.10, distribution: 0.20, trend: 0.14, chiSquare: 0.05, poisson: 0.03, fibonacci: 0.12 },
-    { frequency: 0.12, weightedFrequency: 0.18, gap: 0.18, pattern: 0.10, distribution: 0.18, trend: 0.14, chiSquare: 0.05, poisson: 0.03, fibonacci: 0.12 },
-    { frequency: 0.10, weightedFrequency: 0.16, gap: 0.18, pattern: 0.12, distribution: 0.18, trend: 0.16, chiSquare: 0.05, poisson: 0.03, fibonacci: 0.12 },
-    { frequency: 0.08, weightedFrequency: 0.18, gap: 0.22, pattern: 0.10, distribution: 0.18, trend: 0.14, chiSquare: 0.05, poisson: 0.03, fibonacci: 0.12 },
-    { frequency: 0.12, weightedFrequency: 0.16, gap: 0.20, pattern: 0.10, distribution: 0.16, trend: 0.16, chiSquare: 0.05, poisson: 0.03, fibonacci: 0.12 },
-    { frequency: 0.10, weightedFrequency: 0.18, gap: 0.18, pattern: 0.10, distribution: 0.20, trend: 0.14, chiSquare: 0.04, poisson: 0.04, fibonacci: 0.12 }
+    // 配置1：默認權重（平衡配置）
+    { frequency: 0.08, weightedFrequency: 0.10, gap: 0.10, pattern: 0.06, distribution: 0.10, trend: 0.09, chiSquare: 0.03, poisson: 0.03, fibonacci: 0.08, correlation: 0.08, entropy: 0.06, markov: 0.10, combinatorial: 0.09 },
+    // 配置2：重視間隔和馬可夫鏈
+    { frequency: 0.06, weightedFrequency: 0.08, gap: 0.15, pattern: 0.05, distribution: 0.10, trend: 0.08, chiSquare: 0.02, poisson: 0.02, fibonacci: 0.06, correlation: 0.08, entropy: 0.05, markov: 0.15, combinatorial: 0.10 },
+    // 配置3：重視加權頻率和分布
+    { frequency: 0.06, weightedFrequency: 0.15, gap: 0.08, pattern: 0.05, distribution: 0.15, trend: 0.10, chiSquare: 0.03, poisson: 0.03, fibonacci: 0.07, correlation: 0.08, entropy: 0.06, markov: 0.08, combinatorial: 0.06 },
+    // 配置4：重視趨勢和組合數學
+    { frequency: 0.07, weightedFrequency: 0.09, gap: 0.09, pattern: 0.05, distribution: 0.09, trend: 0.15, chiSquare: 0.02, poisson: 0.02, fibonacci: 0.07, correlation: 0.07, entropy: 0.05, markov: 0.09, combinatorial: 0.15 },
+    // 配置5：重視相關性和熵分析
+    { frequency: 0.07, weightedFrequency: 0.08, gap: 0.08, pattern: 0.05, distribution: 0.08, trend: 0.08, chiSquare: 0.02, poisson: 0.02, fibonacci: 0.07, correlation: 0.15, entropy: 0.12, markov: 0.10, combinatorial: 0.10 },
+    // 配置6：重視頻率和斐波那契
+    { frequency: 0.12, weightedFrequency: 0.10, gap: 0.08, pattern: 0.06, distribution: 0.08, trend: 0.08, chiSquare: 0.03, poisson: 0.03, fibonacci: 0.12, correlation: 0.08, entropy: 0.06, markov: 0.08, combinatorial: 0.08 },
+    // 配置7：重視馬可夫鏈和組合數學
+    { frequency: 0.06, weightedFrequency: 0.08, gap: 0.10, pattern: 0.05, distribution: 0.08, trend: 0.08, chiSquare: 0.02, poisson: 0.02, fibonacci: 0.06, correlation: 0.08, entropy: 0.05, markov: 0.18, combinatorial: 0.14 },
+    // 配置8：平衡所有新方法
+    { frequency: 0.07, weightedFrequency: 0.09, gap: 0.10, pattern: 0.05, distribution: 0.09, trend: 0.08, chiSquare: 0.02, poisson: 0.02, fibonacci: 0.07, correlation: 0.12, entropy: 0.08, markov: 0.12, combinatorial: 0.09 }
   ];
   
   // 測試每組初始權重，選擇表現最好的
@@ -708,12 +803,119 @@ function iterativeValidation(allResults, lookbackPeriods = 10) {
   // 注意：iterativeValidation 的完整實現非常長（包含優化循環）
   // 這裡只包含基本驗證邏輯，優化循環部分可以後續添加或簡化
   
+  // 生成未來一期的預測（使用最終權重和所有歷史數據）
+  let latestPeriodPrediction = null;
+  try {
+    // 使用所有歷史數據進行分析（不排除任何期數）
+    const allTrainingData = allResults;
+    const futureAnalysis = analyzeNumbers(allTrainingData, currentWeights, null);
+    
+    // 使用歷史驗證結果來優化選擇（如果有的話）
+    const historicalResults = validationResults.slice(-20); // 使用最近20期的驗證結果
+    
+    // 生成多個候選組合
+    const futureCandidateCombinations = generateMultipleCandidates(
+      futureAnalysis.topNumbers, 
+      6, 
+      historicalResults
+    );
+    
+    // 選擇最優的組合
+    let futurePredictedNumbers = null;
+    let futureStrategy = 'optimal';
+    
+    if (futureCandidateCombinations && futureCandidateCombinations.length > 0) {
+      // 如果有歷史數據，優先選擇歷史表現最好的策略
+      const strategyPerformance = {};
+      historicalResults.forEach(result => {
+        if (result.strategy) {
+          if (!strategyPerformance[result.strategy]) {
+            strategyPerformance[result.strategy] = { hits: 0, total: 0, atLeast3: 0 };
+          }
+          strategyPerformance[result.strategy].hits += result.comparison.hitCount;
+          strategyPerformance[result.strategy].total += 1;
+          if (result.comparison.hitCount >= 3) {
+            strategyPerformance[result.strategy].atLeast3 += 1;
+          }
+        }
+      });
+      
+      // 找到表現最好的策略
+      let bestStrategyName = null;
+      let bestStrategyScore = -1;
+      Object.keys(strategyPerformance).forEach(strategy => {
+        const perf = strategyPerformance[strategy];
+        if (perf.total > 0) {
+          const atLeast3Rate = perf.atLeast3 / perf.total;
+          const avgHitCount = perf.hits / perf.total;
+          const score = atLeast3Rate * 100 + avgHitCount * 20; // 至少3個命中率權重更高
+          if (score > bestStrategyScore) {
+            bestStrategyScore = score;
+            bestStrategyName = strategy;
+          }
+        }
+      });
+      
+      // 優先選擇歷史表現最好的策略的組合
+      if (bestStrategyName) {
+        const bestStrategyCombination = futureCandidateCombinations.find(
+          c => c.strategy === bestStrategyName
+        );
+        if (bestStrategyCombination && bestStrategyCombination.numbers) {
+          futurePredictedNumbers = bestStrategyCombination.numbers;
+          futureStrategy = bestStrategyName;
+        }
+      }
+      
+      // 如果沒有找到，使用智能選擇
+      if (!futurePredictedNumbers) {
+        futurePredictedNumbers = selectOptimalNumbers(
+          futureAnalysis.topNumbers, 
+          6, 
+          historicalResults
+        );
+        futureStrategy = 'optimal';
+      }
+    } else {
+      // 如果沒有候選組合，使用智能選擇策略
+      futurePredictedNumbers = selectOptimalNumbers(
+        futureAnalysis.topNumbers, 
+        6, 
+        historicalResults
+      );
+      futureStrategy = 'optimal';
+    }
+    
+    // 確保預測號碼有效
+    if (futurePredictedNumbers && futurePredictedNumbers.length > 0) {
+      latestPeriodPrediction = {
+        periodNumber: latestPeriod, // 基於最新期數預測下一期
+        predictedNumbers: futurePredictedNumbers.map(n => n.number || n).sort((a, b) => a - b),
+        strategy: futureStrategy,
+        topNumbers: futureAnalysis.topNumbers.slice(0, 10).map(n => ({
+          number: n.number,
+          score: n.score
+        })),
+        analysis: {
+          totalPeriods: futureAnalysis.stats.totalPeriods,
+          averageFrequency: futureAnalysis.stats.averageFrequency,
+          mostFrequent: futureAnalysis.stats.mostFrequent
+        },
+        weights: { ...currentWeights },
+        timestamp: new Date().toISOString()
+      };
+    }
+  } catch (error) {
+    console.error('生成未來一期預測時發生錯誤:', error);
+    // 即使出錯，也繼續返回其他結果
+  }
+  
   return {
     latestPeriod: latestPeriod,
     startPeriod: allResults[startIndex]?.periodNumber,
     totalValidations: totalValidations,
     validationResults: validationResults,
-    latestPeriodPrediction: null, // 需要完整實現
+    latestPeriodPrediction: latestPeriodPrediction,
     finalWeights: currentWeights,
     statistics: {
       totalHits: totalHits,

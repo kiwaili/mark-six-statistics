@@ -12,7 +12,7 @@
 - 自動按日期排序（最新的在前）
 
 ### 2. 統計分析
-系統使用九種統計方法進行綜合分析：
+系統使用十三種統計方法進行綜合分析：
 
 - **頻率分析 (Frequency Analysis)**: 統計每個號碼（1-49）在歷史資料中出現的總次數
 - **加權頻率分析 (Weighted Frequency)**: 近期出現的號碼權重更高，使用指數衰減模型（每往前一期權重減少 5%）
@@ -23,10 +23,14 @@
 - **卡方檢驗 (Chi-Square Test)**: 使用統計學方法檢驗號碼出現是否符合均勻分布
 - **泊松分布分析 (Poisson Analysis)**: 使用泊松分布模型分析號碼出現的機率
 - **斐波那契分析 (Fibonacci Analysis)**: 基於斐波那契數列和黃金比例分析號碼出現模式
+- **相關性分析 (Correlation Analysis)**: 計算號碼之間的皮爾遜相關係數，識別號碼之間的關聯性
+- **熵分析 (Entropy Analysis)**: 使用香農熵評估號碼出現的不確定性，識別非隨機模式
+- **馬可夫鏈分析 (Markov Chain Analysis)**: 分析號碼之間的轉移機率，預測基於上一期號碼的條件機率
+- **組合數學分析 (Combinatorial Analysis)**: 分析號碼組合的數學特性（和、差、連續對等），識別組合規律
 
 ### 3. 智能預測
-- **綜合評分系統**: 將九種分析方法的分數正規化後加權組合，產生綜合預測分數
-- **可自訂權重**: 支援自訂各分析方法的權重比例（預設：頻率 10%、加權頻率 14%、間隔 14%、模式 8%、分布 14%、趨勢 12%、卡方 4%、泊松 4%、斐波那契 12%）
+- **綜合評分系統**: 將十三種分析方法的分數正規化後加權組合，產生綜合預測分數
+- **可自訂權重**: 支援自訂各分析方法的權重比例（預設：頻率 8%、加權頻率 10%、間隔 10%、模式 6%、分布 10%、趨勢 9%、卡方 3%、泊松 3%、斐波那契 8%、相關性 8%、熵 6%、馬可夫鏈 10%、組合數學 9%）
 - **Top 40 候選**: 返回綜合分數最高的前 40 個號碼作為候選，提高預測覆蓋率
 - **複式投注建議**: 提供兩種複式投注方案
   - **完整複式建議**: 使用縮減輪轉系統，以較少注數覆蓋所有預測號碼
@@ -164,15 +168,19 @@ docker run -p 8080:8080 mark-six-statistics
     }
   ],
   "weights": {
-    "frequency": 0.10,
-    "weightedFrequency": 0.14,
-    "gap": 0.14,
-    "pattern": 0.08,
-    "distribution": 0.14,
-    "trend": 0.12,
-    "chiSquare": 0.04,
-    "poisson": 0.04,
-    "fibonacci": 0.12
+    "frequency": 0.08,
+    "weightedFrequency": 0.10,
+    "gap": 0.10,
+    "pattern": 0.06,
+    "distribution": 0.10,
+    "trend": 0.09,
+    "chiSquare": 0.03,
+    "poisson": 0.03,
+    "fibonacci": 0.08,
+    "correlation": 0.08,
+    "entropy": 0.06,
+    "markov": 0.10,
+    "combinatorial": 0.09
   }
 }
 ```
@@ -194,7 +202,11 @@ docker run -p 8080:8080 mark-six-statistics
         "trendScore": 14.56,
         "chiSquareScore": 6.78,
         "poissonScore": 5.43,
-        "fibonacciScore": 12.89
+        "fibonacciScore": 12.89,
+        "correlationScore": 8.45,
+        "entropyScore": 7.23,
+        "markovScore": 9.12,
+        "combinatorialScore": 8.67
       }
     ],
     "stats": {
@@ -252,6 +264,27 @@ docker run -p 8080:8080 mark-six-statistics
         "fibonacciSequence": [1, 1, 2, 3, 5, 8, 13, 21, 34],
         "goldenRatio": 1.618
       },
+      "correlation": {
+        "scores": { "1": 5.8, "2": 6.2, ... },
+        "correlations": { "1": [{ "number": 15, "correlation": 0.35 }], ... }
+      },
+      "entropy": {
+        "scores": { "1": 4.5, "2": 5.1, ... },
+        "overallEntropy": 5.89,
+        "maxEntropy": 5.61
+      },
+      "markov": {
+        "scores": { "1": 6.2, "2": 7.1, ... },
+        "transitionMatrix": { "1": { "2": 0.15, "3": 0.12, ... }, ... }
+      },
+      "combinatorial": {
+        "scores": { "1": 5.8, "2": 6.5, ... },
+        "patterns": {
+          "avgSum": 150.5,
+          "avgDiff": 8.2,
+          "commonSums": [145, 150, 155, ...]
+        }
+      },
       "compositeScore": { "1": 45.6, "2": 52.3, ... }
     }
   }
@@ -295,28 +328,36 @@ docker run -p 8080:8080 mark-six-statistics
           "coverage": 16.67
         },
         "weights": {
-          "frequency": 0.10,
-          "weightedFrequency": 0.14,
-          "gap": 0.14,
-          "pattern": 0.08,
-          "distribution": 0.14,
-          "trend": 0.12,
-          "chiSquare": 0.04,
-          "poisson": 0.04,
-          "fibonacci": 0.12
+          "frequency": 0.08,
+          "weightedFrequency": 0.10,
+          "gap": 0.10,
+          "pattern": 0.06,
+          "distribution": 0.10,
+          "trend": 0.09,
+          "chiSquare": 0.03,
+          "poisson": 0.03,
+          "fibonacci": 0.08,
+          "correlation": 0.08,
+          "entropy": 0.06,
+          "markov": 0.10,
+          "combinatorial": 0.09
         }
       }
     ],
     "finalWeights": {
-      "frequency": 0.10,
-      "weightedFrequency": 0.14,
-      "gap": 0.14,
-      "pattern": 0.08,
-      "distribution": 0.14,
-      "trend": 0.12,
-      "chiSquare": 0.04,
-      "poisson": 0.04,
-      "fibonacci": 0.12
+      "frequency": 0.08,
+      "weightedFrequency": 0.10,
+      "gap": 0.10,
+      "pattern": 0.06,
+      "distribution": 0.10,
+      "trend": 0.09,
+      "chiSquare": 0.03,
+      "poisson": 0.03,
+      "fibonacci": 0.08,
+      "correlation": 0.08,
+      "entropy": 0.06,
+      "markov": 0.10,
+      "combinatorial": 0.09
     },
     "statistics": {
       "totalHits": 30,
@@ -392,8 +433,37 @@ docker run -p 8080:8080 mark-six-statistics
 - 分析號碼位置關係是否符合黃金比例
 - 分析週期性模式
 
-### 10. 綜合評分
-將九種分析方法的分數正規化到 0-100 範圍，然後加權組合：
+### 10. 相關性分析 (Correlation Analysis)
+計算號碼之間的皮爾遜相關係數，識別號碼之間的關聯性：
+- 計算每對號碼之間的相關係數
+- 識別強相關的號碼對（|r| > 0.3）
+- 如果某號碼與多個號碼有強相關性，給予較高分數
+- 應用：識別可能一起出現的號碼組合
+
+### 11. 熵分析 (Entropy Analysis)
+使用香農熵評估號碼出現的不確定性：
+- 計算整體熵值：`H(X) = -Σ P(x) * log₂(P(x))`
+- 分析每個號碼出現頻率與期望值的偏差
+- 偏差大的號碼（非隨機模式）給予較高分數
+- 應用：識別非隨機模式，評估分布的隨機性
+
+### 12. 馬可夫鏈分析 (Markov Chain Analysis)
+分析號碼之間的轉移機率，建立狀態轉移矩陣：
+- 計算從上一期號碼轉移到下一期號碼的機率
+- 基於最新一期的號碼，預測下一期各號碼出現的條件機率
+- 轉移機率高的號碼給予較高分數
+- 應用：捕捉短期依賴關係，預測基於上一期的條件機率
+
+### 13. 組合數學分析 (Combinatorial Analysis)
+分析號碼組合的數學特性：
+- **和值分析**：計算歷史組合的總和分布，識別常見和值範圍
+- **差值分析**：分析相鄰號碼的差值分布，識別常見差值
+- **連續對分析**：識別經常一起出現的連續號碼對
+- **位置關係**：分析號碼在排序後的位置關係
+- 應用：識別組合規律，預測符合歷史組合特性的號碼
+
+### 14. 綜合評分
+將十三種分析方法的分數正規化到 0-100 範圍，然後加權組合：
 ```
 compositeScore = 
   normalizedFrequency * weight_frequency +
@@ -404,10 +474,14 @@ compositeScore =
   normalizedTrendScore * weight_trend +
   normalizedChiSquareScore * weight_chiSquare +
   normalizedPoissonScore * weight_poisson +
-  normalizedFibonacciScore * weight_fibonacci
+  normalizedFibonacciScore * weight_fibonacci +
+  normalizedCorrelationScore * weight_correlation +
+  normalizedEntropyScore * weight_entropy +
+  normalizedMarkovScore * weight_markov +
+  normalizedCombinatorialScore * weight_combinatorial
 ```
 
-### 11. 智能學習
+### 15. 智能學習
 在迭代驗證過程中，系統會：
 1. 分析命中號碼和未命中號碼在各指標中的排名
 2. 計算各指標的效能分數

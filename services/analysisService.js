@@ -24,7 +24,11 @@ const {
   calculateDistributionScore,
   calculateTrendAnalysis,
   calculateChiSquareScore,
-  calculatePoissonScore
+  calculatePoissonScore,
+  calculateCorrelationScore,
+  calculateEntropyScore,
+  calculateMarkovChainScore,
+  calculateCombinatorialScore
 } = require('./calculators');
 
 // 導入斐波那契分析
@@ -77,6 +81,12 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
   const chiSquareResult = calculateChiSquareScore(allNumbers, excludePeriodNumbers, filteredNumbers);
   const poissonResult = calculatePoissonScore(allNumbers, excludePeriodNumbers, filteredNumbers);
   const fibonacciResult = calculateFibonacciScore(allNumbers, excludePeriodNumbers, filteredNumbers);
+  
+  // 計算新增的統計分析方法
+  const correlationResult = calculateCorrelationScore(allNumbers, excludePeriodNumbers, filteredNumbers);
+  const entropyResult = calculateEntropyScore(allNumbers, excludePeriodNumbers, filteredNumbers);
+  const markovResult = calculateMarkovChainScore(allNumbers, excludePeriodNumbers, filteredNumbers);
+  const combinatorialResult = calculateCombinatorialScore(allNumbers, excludePeriodNumbers, filteredNumbers);
 
   // 正規化各項分數到 0-100 範圍
   const normalize = (scores) => {
@@ -101,22 +111,31 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
   const normalizedChiSquareScore = normalize(chiSquareResult.scores);
   const normalizedPoissonScore = normalize(poissonResult.scores);
   const normalizedFibonacciScore = normalize(fibonacciResult.scores);
+  const normalizedCorrelationScore = normalize(correlationResult.scores);
+  const normalizedEntropyScore = normalize(entropyResult.scores);
+  const normalizedMarkovScore = normalize(markovResult.scores);
+  const normalizedCombinatorialScore = normalize(combinatorialResult.scores);
 
   // 計算綜合分數（加權組合）
-  // 優化權重分配以提高準確率至50%：更重視趨勢和分布分析
-  // 預設權重: 頻率: 10%, 加權頻率: 14%, 間隔: 14%, 模式: 8%, 分布: 14%, 趨勢: 12%, 卡方: 4%, 泊松: 4%, 斐波那契: 12%
-  // 注意：斐波那契權重設為12%（與趨勢相同），避免過度偏向。迭代驗證會根據實際表現動態調整所有權重。
+  // 優化權重分配以提高準確率：更重視趨勢和分布分析
+  // 預設權重: 頻率: 8%, 加權頻率: 10%, 間隔: 10%, 模式: 6%, 分布: 10%, 趨勢: 9%, 卡方: 3%, 泊松: 3%, 斐波那契: 8%
+  // 新增方法權重: 相關性: 8%, 熵: 6%, 馬可夫鏈: 10%, 組合數學: 9%
+  // 注意：迭代驗證會根據實際表現動態調整所有權重。
   // 如果提供了自訂權重，則使用自訂權重
   const defaultWeights = {
-    frequency: 0.10,
-    weightedFrequency: 0.14,
-    gap: 0.14,
-    pattern: 0.08,
-    distribution: 0.14,
-    trend: 0.12,
-    chiSquare: 0.04,
-    poisson: 0.04,
-    fibonacci: 0.12  // 降低初始權重以避免早期預測過度偏向，迭代驗證會根據表現動態調整
+    frequency: 0.08,
+    weightedFrequency: 0.10,
+    gap: 0.10,
+    pattern: 0.06,
+    distribution: 0.10,
+    trend: 0.09,
+    chiSquare: 0.03,
+    poisson: 0.03,
+    fibonacci: 0.08,
+    correlation: 0.08,
+    entropy: 0.06,
+    markov: 0.10,
+    combinatorial: 0.09
   };
   
   const finalWeights = {
@@ -128,13 +147,18 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
     trend: weights.trend !== undefined ? weights.trend : defaultWeights.trend,
     chiSquare: weights.chiSquare !== undefined ? weights.chiSquare : defaultWeights.chiSquare,
     poisson: weights.poisson !== undefined ? weights.poisson : defaultWeights.poisson,
-    fibonacci: weights.fibonacci !== undefined ? weights.fibonacci : defaultWeights.fibonacci
+    fibonacci: weights.fibonacci !== undefined ? weights.fibonacci : defaultWeights.fibonacci,
+    correlation: weights.correlation !== undefined ? weights.correlation : defaultWeights.correlation,
+    entropy: weights.entropy !== undefined ? weights.entropy : defaultWeights.entropy,
+    markov: weights.markov !== undefined ? weights.markov : defaultWeights.markov,
+    combinatorial: weights.combinatorial !== undefined ? weights.combinatorial : defaultWeights.combinatorial
   };
   
   // 正規化權重，確保總和為1
   const totalWeight = finalWeights.frequency + finalWeights.weightedFrequency + finalWeights.gap + 
                       finalWeights.pattern + finalWeights.distribution + finalWeights.trend + 
-                      finalWeights.chiSquare + finalWeights.poisson + finalWeights.fibonacci;
+                      finalWeights.chiSquare + finalWeights.poisson + finalWeights.fibonacci +
+                      finalWeights.correlation + finalWeights.entropy + finalWeights.markov + finalWeights.combinatorial;
   if (totalWeight > 0) {
     Object.keys(finalWeights).forEach(key => {
       finalWeights[key] = finalWeights[key] / totalWeight;
@@ -153,7 +177,11 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
       normalizedTrendScore[i] * finalWeights.trend +
       normalizedChiSquareScore[i] * finalWeights.chiSquare +
       normalizedPoissonScore[i] * finalWeights.poisson +
-      normalizedFibonacciScore[i] * finalWeights.fibonacci;
+      normalizedFibonacciScore[i] * finalWeights.fibonacci +
+      normalizedCorrelationScore[i] * finalWeights.correlation +
+      normalizedEntropyScore[i] * finalWeights.entropy +
+      normalizedMarkovScore[i] * finalWeights.markov +
+      normalizedCombinatorialScore[i] * finalWeights.combinatorial;
   }
   
   // 取得前 40 名（增加候選數量以提高命中至少3個的概率，目標平均命中數至少3）
@@ -169,7 +197,11 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
       trendScore: Math.round(trendScore[num] * 100) / 100,
       chiSquareScore: Math.round(chiSquareResult.scores[num] * 100) / 100,
       poissonScore: Math.round(poissonResult.scores[num] * 100) / 100,
-      fibonacciScore: Math.round(fibonacciResult.scores[num] * 100) / 100
+      fibonacciScore: Math.round(fibonacciResult.scores[num] * 100) / 100,
+      correlationScore: Math.round(correlationResult.scores[num] * 100) / 100,
+      entropyScore: Math.round(entropyResult.scores[num] * 100) / 100,
+      markovScore: Math.round(markovResult.scores[num] * 100) / 100,
+      combinatorialScore: Math.round(combinatorialResult.scores[num] * 100) / 100
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 40); // 增加到40個候選號碼，提供更多選擇以提高命中率
@@ -242,6 +274,23 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
         scores: fibonacciResult.scores,
         fibonacciSequence: fibonacciResult.fibonacciSequence,
         goldenRatio: fibonacciResult.goldenRatio
+      },
+      correlation: {
+        scores: correlationResult.scores,
+        correlations: correlationResult.correlations
+      },
+      entropy: {
+        scores: entropyResult.scores,
+        overallEntropy: entropyResult.overallEntropy,
+        maxEntropy: entropyResult.maxEntropy
+      },
+      markov: {
+        scores: markovResult.scores,
+        transitionMatrix: markovResult.transitionMatrix
+      },
+      combinatorial: {
+        scores: combinatorialResult.scores,
+        patterns: combinatorialResult.patterns
       }
     }
   };
@@ -251,7 +300,7 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
 setAnalyzeNumbers(analyzeNumbers);
 
 // 包裝 iterativeValidation 以確保 analyzeNumbers 已設置
-const wrappedIterativeValidation = function(allResults, lookbackPeriods = 10) {
+const wrappedIterativeValidation = function(allResults, lookbackPeriods = 100) {
   return iterativeValidation(allResults, lookbackPeriods);
 };
 
