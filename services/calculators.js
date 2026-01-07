@@ -821,20 +821,44 @@ function calculateCombinatorialScore(allNumbers, excludePeriodNumbers = null, fi
 }
 
 /**
- * 計算自回歸模型 (AR) 分析分數
- * 使用過去N期的值預測未來值，捕捉時間序列中的自相關性
+ * 計算加權移動平均分數
+ * 使用過去N期的加權值預測未來值，較近期的值權重較高
+ * @param {Array<number>} appearances - 號碼出現序列（每期是否出現：1或0）
+ * @param {number} order - 移動平均階數
+ * @returns {number} 正規化後的預測值（0-1範圍）
+ */
+function calculateWeightedRecentScore(appearances, order) {
+  if (appearances.length < order) {
+    return 0;
+  }
+  
+  let prediction = 0;
+  for (let j = 1; j <= order; j++) {
+    if (appearances.length >= j) {
+      prediction += appearances[appearances.length - j] * (1 / j);
+    }
+  }
+  // 正規化預測值
+  prediction = prediction / order;
+  
+  return Math.max(0, Math.min(1, prediction));
+}
+
+/**
+ * 計算加權移動平均分析分數
+ * 使用過去N期的加權值預測未來值，較近期的值權重較高
  * @param {Array} allNumbers - 所有期數的號碼陣列
  * @param {Set} excludePeriodNumbers - 可選，要排除的期數集合（期數字串）
  * @param {Array} filteredNumbers - 可選，預先過濾後的數組（性能優化，避免重複過濾）
- * @param {number} order - AR模型階數，預設為3
- * @returns {Object} 自回歸分析分數
+ * @param {number} order - 移動平均階數，預設為3
+ * @returns {Object} 加權移動平均分析分數
  */
 function calculateAutoregressiveScore(allNumbers, excludePeriodNumbers = null, filteredNumbers = null, order = 3) {
-  const arScore = {};
+  const weightedRecentScore = {};
   
   // 初始化所有可能的號碼 (1-49)
   for (let i = 1; i <= 49; i++) {
-    arScore[i] = 0;
+    weightedRecentScore[i] = 0;
   }
   
   // 使用預過濾的數組（如果提供），否則過濾
@@ -843,10 +867,10 @@ function calculateAutoregressiveScore(allNumbers, excludePeriodNumbers = null, f
     : allNumbers);
   
   if (filtered.length < order + 1) {
-    return { scores: arScore, coefficients: {}, predictions: {} };
+    return { scores: weightedRecentScore, coefficients: {}, predictions: {} };
   }
   
-  // 對每個號碼建立AR模型
+  // 對每個號碼計算加權移動平均
   const coefficients = {};
   const predictions = {};
   
@@ -858,25 +882,13 @@ function calculateAutoregressiveScore(allNumbers, excludePeriodNumbers = null, f
     }
     
     if (appearances.length >= order) {
-      // 使用AR模型預測下一期
-      let prediction = 0;
-      for (let j = 1; j <= order; j++) {
-        if (appearances.length >= j) {
-          prediction += appearances[appearances.length - j] * (1 / j);
-        }
-      }
-      // 正規化預測值
-      prediction = prediction / order;
-      
-      predictions[num] = Math.max(0, Math.min(1, prediction));
-      
-      // 如果預測值高，給予高分
-      arScore[num] = predictions[num] * 100;
+      predictions[num] = calculateWeightedRecentScore(appearances, order);
+      weightedRecentScore[num] = predictions[num] * 100;
     }
   }
   
   return {
-    scores: arScore,
+    scores: weightedRecentScore,
     coefficients: coefficients,
     predictions: predictions
   };
