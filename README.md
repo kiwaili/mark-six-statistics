@@ -12,7 +12,7 @@
 - 自動按日期排序（最新的在前）
 
 ### 2. 統計分析
-系統使用十三種統計方法進行綜合分析：
+系統使用十七種統計方法進行綜合分析：
 
 - **頻率分析 (Frequency Analysis)**: 統計每個號碼（1-49）在歷史資料中出現的總次數
 - **加權頻率分析 (Weighted Frequency)**: 近期出現的號碼權重更高，使用指數衰減模型（每往前一期權重減少 5%）
@@ -27,10 +27,14 @@
 - **熵分析 (Entropy Analysis)**: 使用香農熵評估號碼出現的不確定性，識別非隨機模式
 - **馬可夫鏈分析 (Markov Chain Analysis)**: 分析號碼之間的轉移機率，預測基於上一期號碼的條件機率
 - **組合數學分析 (Combinatorial Analysis)**: 分析號碼組合的數學特性（和、差、連續對等），識別組合規律
+- **自回歸模型 (AR - Autoregressive Model)**: 使用過去N期的值預測未來值，捕捉時間序列中的自相關性
+- **生存分析 (Survival Analysis)**: 分析號碼「存活」（未出現）的時間長度，計算危險率預測再次出現時機
+- **極值理論 (Extreme Value Theory)**: 分析極端事件（如某號碼長期未出現）的分布，評估「冷門號碼」出現的機率
+- **聚類分析 (Cluster Analysis)**: 將號碼分組，識別相似的出現模式，發現號碼之間的關聯性和組合模式
 
 ### 3. 智能預測
-- **綜合評分系統**: 將十三種分析方法的分數正規化後加權組合，產生綜合預測分數
-- **可自訂權重**: 支援自訂各分析方法的權重比例（預設：頻率 8%、加權頻率 10%、間隔 10%、模式 6%、分布 10%、趨勢 9%、卡方 3%、泊松 3%、斐波那契 8%、相關性 8%、熵 6%、馬可夫鏈 10%、組合數學 9%）
+- **綜合評分系統**: 將十七種分析方法的分數正規化後加權組合，產生綜合預測分數
+- **可自訂權重**: 支援自訂各分析方法的權重比例（預設：頻率 7%、加權頻率 9%、間隔 9%、模式 5%、分布 9%、趨勢 8%、卡方 3%、泊松 3%、斐波那契 7%、相關性 7%、熵 5%、馬可夫鏈 9%、組合數學 8%、自回歸 6%、生存分析 7%、極值理論 6%、聚類分析 7%）
 - **Top 40 候選**: 返回綜合分數最高的前 40 個號碼作為候選，提高預測覆蓋率
 - **複式投注建議**: 提供兩種複式投注方案
   - **完整複式建議**: 使用縮減輪轉系統，以較少注數覆蓋所有預測號碼
@@ -176,11 +180,15 @@ docker run -p 8080:8080 mark-six-statistics
     "trend": 0.09,
     "chiSquare": 0.03,
     "poisson": 0.03,
-    "fibonacci": 0.08,
-    "correlation": 0.08,
-    "entropy": 0.06,
-    "markov": 0.10,
-    "combinatorial": 0.09
+    "fibonacci": 0.07,
+    "correlation": 0.07,
+    "entropy": 0.05,
+    "markov": 0.09,
+    "combinatorial": 0.08,
+    "autoregressive": 0.06,
+    "survival": 0.07,
+    "extremeValue": 0.06,
+    "cluster": 0.07
   }
 }
 ```
@@ -206,7 +214,11 @@ docker run -p 8080:8080 mark-six-statistics
         "correlationScore": 8.45,
         "entropyScore": 7.23,
         "markovScore": 9.12,
-        "combinatorialScore": 8.67
+        "combinatorialScore": 8.67,
+        "autoregressiveScore": 7.89,
+        "survivalScore": 8.34,
+        "extremeValueScore": 7.56,
+        "clusterScore": 8.12
       }
     ],
     "stats": {
@@ -285,6 +297,26 @@ docker run -p 8080:8080 mark-six-statistics
           "commonSums": [145, 150, 155, ...]
         }
       },
+      "autoregressive": {
+        "scores": { "1": 6.2, "2": 7.1, ... },
+        "coefficients": { "1": [0.15], "2": [0.18], ... },
+        "predictions": { "1": 0.12, "2": 0.15, ... }
+      },
+      "survival": {
+        "scores": { "1": 7.3, "2": 8.2, ... },
+        "survivalTimes": { "1": [5, 8, 12], "2": [6, 9, 11], ... },
+        "hazardRates": { "1": 0.15, "2": 0.18, ... }
+      },
+      "extremeValue": {
+        "scores": { "1": 6.8, "2": 7.5, ... },
+        "extremeGaps": { "1": 25, "2": 30, ... },
+        "returnLevels": { "1": 0.12, "2": 0.15, ... }
+      },
+      "cluster": {
+        "scores": { "1": 7.1, "2": 7.8, ... },
+        "clusters": { "0": [1, 5, 12], "1": [8, 15, 22], ... },
+        "clusterCenters": [1, 8, 15, 22, 29, 36, 43]
+      },
       "compositeScore": { "1": 45.6, "2": 52.3, ... }
     }
   }
@@ -337,10 +369,14 @@ docker run -p 8080:8080 mark-six-statistics
           "chiSquare": 0.03,
           "poisson": 0.03,
           "fibonacci": 0.08,
-          "correlation": 0.08,
-          "entropy": 0.06,
-          "markov": 0.10,
-          "combinatorial": 0.09
+          "correlation": 0.07,
+          "entropy": 0.05,
+          "markov": 0.09,
+          "combinatorial": 0.08,
+          "autoregressive": 0.06,
+          "survival": 0.07,
+          "extremeValue": 0.06,
+          "cluster": 0.07
         }
       }
     ],
@@ -353,11 +389,15 @@ docker run -p 8080:8080 mark-six-statistics
       "trend": 0.09,
       "chiSquare": 0.03,
       "poisson": 0.03,
-      "fibonacci": 0.08,
-      "correlation": 0.08,
-      "entropy": 0.06,
-      "markov": 0.10,
-      "combinatorial": 0.09
+      "fibonacci": 0.07,
+      "correlation": 0.07,
+      "entropy": 0.05,
+      "markov": 0.09,
+      "combinatorial": 0.08,
+      "autoregressive": 0.06,
+      "survival": 0.07,
+      "extremeValue": 0.06,
+      "cluster": 0.07
     },
     "statistics": {
       "totalHits": 30,
@@ -462,8 +502,36 @@ docker run -p 8080:8080 mark-six-statistics
 - **位置關係**：分析號碼在排序後的位置關係
 - 應用：識別組合規律，預測符合歷史組合特性的號碼
 
-### 14. 綜合評分
-將十三種分析方法的分數正規化到 0-100 範圍，然後加權組合：
+### 14. 自回歸模型 (AR - Autoregressive Model)
+使用時間序列分析預測未來值：
+- **原理**：使用過去N期的值預測未來值，捕捉時間序列中的自相關性
+- **模型階數**：預設為3階（AR(3)）
+- **預測方法**：基於最小二乘法估計AR係數，計算下一期出現機率
+- 應用：捕捉時間序列中的自相關性，識別短期趨勢
+
+### 15. 生存分析 (Survival Analysis)
+分析號碼「存活」（未出現）的時間長度：
+- **生存時間**：計算每個號碼每次未出現的連續期數
+- **危險率 (Hazard Rate)**：在給定時間t，號碼在下一期出現的條件機率
+- **指數分布模型**：使用指數分布模型預測號碼再次出現的時機
+- 應用：預測號碼何時會再次出現，改進間隔分析
+
+### 16. 極值理論 (Extreme Value Theory)
+分析極端事件（如某號碼長期未出現）的分布：
+- **最大間隔**：計算每個號碼的歷史最大間隔
+- **廣義極值分布 (GEV)**：使用GEV模型分析極值分布
+- **回歸水平 (Return Level)**：在給定時間內，極值超過某個閾值的機率
+- 應用：評估「冷門號碼」出現的機率，改進間隔分析
+
+### 17. 聚類分析 (Cluster Analysis)
+將號碼分組，識別相似的出現模式：
+- **相似度計算**：使用餘弦相似度計算號碼之間的相似性
+- **K-means聚類**：將號碼分成K個聚類（預設7個），識別相似的出現模式
+- **聚類預測**：如果某聚類在最新一期有號碼出現，該聚類的其他號碼可能也會出現
+- 應用：發現號碼之間的關聯性，識別號碼組合模式
+
+### 18. 綜合評分
+將十七種分析方法的分數正規化到 0-100 範圍，然後加權組合：
 ```
 compositeScore = 
   normalizedFrequency * weight_frequency +
@@ -478,7 +546,11 @@ compositeScore =
   normalizedCorrelationScore * weight_correlation +
   normalizedEntropyScore * weight_entropy +
   normalizedMarkovScore * weight_markov +
-  normalizedCombinatorialScore * weight_combinatorial
+  normalizedCombinatorialScore * weight_combinatorial +
+  normalizedAutoregressiveScore * weight_autoregressive +
+  normalizedSurvivalScore * weight_survival +
+  normalizedExtremeValueScore * weight_extremeValue +
+  normalizedClusterScore * weight_cluster
 ```
 
 ### 15. 智能學習

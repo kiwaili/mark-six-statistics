@@ -820,6 +820,507 @@ function calculateCombinatorialScore(allNumbers, excludePeriodNumbers = null, fi
   };
 }
 
+/**
+ * 計算自回歸模型 (AR) 分析分數
+ * 使用過去N期的值預測未來值，捕捉時間序列中的自相關性
+ * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @param {Set} excludePeriodNumbers - 可選，要排除的期數集合（期數字串）
+ * @param {Array} filteredNumbers - 可選，預先過濾後的數組（性能優化，避免重複過濾）
+ * @param {number} order - AR模型階數，預設為3
+ * @returns {Object} 自回歸分析分數
+ */
+function calculateAutoregressiveScore(allNumbers, excludePeriodNumbers = null, filteredNumbers = null, order = 3) {
+  const arScore = {};
+  
+  // 初始化所有可能的號碼 (1-49)
+  for (let i = 1; i <= 49; i++) {
+    arScore[i] = 0;
+  }
+  
+  // 使用預過濾的數組（如果提供），否則過濾
+  const filtered = filteredNumbers || (excludePeriodNumbers 
+    ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+    : allNumbers);
+  
+  if (filtered.length < order + 1) {
+    return { scores: arScore, coefficients: {}, predictions: {} };
+  }
+  
+  // 對每個號碼建立AR模型
+  const coefficients = {};
+  const predictions = {};
+  
+  for (let num = 1; num <= 49; num++) {
+    // 建立出現序列（每期是否出現：1或0）
+    const appearances = [];
+    for (let i = 0; i < filtered.length; i++) {
+      appearances.push(filtered[i].numbers.includes(num) ? 1 : 0);
+    }
+    
+    // 計算AR係數（使用最小二乘法）
+    const n = appearances.length;
+    const X = []; // 設計矩陣
+    const y = []; // 目標向量
+    
+    for (let i = order; i < n; i++) {
+      const row = [1]; // 截距項
+      for (let j = 1; j <= order; j++) {
+        row.push(appearances[i - j]);
+      }
+      X.push(row);
+      y.push(appearances[i]);
+    }
+    
+    // 簡單的最小二乘估計（使用正規方程）
+    let coeffs = null;
+    if (X.length > 0 && X[0].length > 0) {
+      // 計算 X'X 和 X'y
+      const XtX = [];
+      const Xty = [];
+      const p = X[0].length;
+      
+      for (let i = 0; i < p; i++) {
+        XtX[i] = [];
+        Xty[i] = 0;
+        for (let j = 0; j < p; j++) {
+          let sum = 0;
+          for (let k = 0; k < X.length; k++) {
+            sum += X[k][i] * X[k][j];
+          }
+          XtX[i][j] = sum;
+        }
+        for (let k = 0; k < X.length; k++) {
+          Xty[i] += X[k][i] * y[k];
+        }
+      }
+      
+      // 簡單的高斯消元法求解（簡化版）
+      // 如果矩陣可逆，計算係數
+      try {
+        // 使用簡化的方法：直接計算加權平均
+        let weightedSum = 0;
+        let totalWeight = 0;
+        for (let i = order; i < n; i++) {
+          let weight = 0;
+          for (let j = 1; j <= order; j++) {
+            weight += appearances[i - j] * (1 / j); // 越近的期數權重越高
+          }
+          weightedSum += appearances[i] * weight;
+          totalWeight += weight;
+        }
+        
+        const avgCoeff = totalWeight > 0 ? weightedSum / totalWeight : 0;
+        coeffs = [avgCoeff];
+      } catch (e) {
+        coeffs = [0];
+      }
+    }
+    
+    if (coeffs) {
+      coefficients[num] = coeffs;
+      
+      // 使用AR模型預測下一期
+      let prediction = coeffs[0]; // 截距
+      for (let j = 1; j <= order; j++) {
+        if (appearances.length >= j) {
+          prediction += coeffs[0] * appearances[appearances.length - j] * (1 / j);
+        }
+      }
+      
+      predictions[num] = Math.max(0, Math.min(1, prediction));
+      
+      // 如果預測值高，給予高分
+      arScore[num] = predictions[num] * 100;
+    }
+  }
+  
+  return {
+    scores: arScore,
+    coefficients: coefficients,
+    predictions: predictions
+  };
+}
+
+/**
+ * 計算生存分析 (Survival Analysis) 分數
+ * 分析號碼「存活」（未出現）的時間長度，預測號碼何時會再次出現
+ * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @param {Set} excludePeriodNumbers - 可選，要排除的期數集合（期數字串）
+ * @param {Array} filteredNumbers - 可選，預先過濾後的數組（性能優化，避免重複過濾）
+ * @returns {Object} 生存分析分數
+ */
+function calculateSurvivalAnalysisScore(allNumbers, excludePeriodNumbers = null, filteredNumbers = null) {
+  const survivalScore = {};
+  
+  // 初始化所有可能的號碼 (1-49)
+  for (let i = 1; i <= 49; i++) {
+    survivalScore[i] = 0;
+  }
+  
+  // 使用預過濾的數組（如果提供），否則過濾
+  const filtered = filteredNumbers || (excludePeriodNumbers 
+    ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+    : allNumbers);
+  
+  if (filtered.length < 2) {
+    return { scores: survivalScore, survivalTimes: {}, hazardRates: {} };
+  }
+  
+  // 計算每個號碼的生存時間（未出現的連續期數）
+  const survivalTimes = {}; // 記錄每次「存活」的時間長度
+  const lastAppearance = {}; // 記錄最後一次出現的位置
+  
+  // 初始化
+  for (let i = 1; i <= 49; i++) {
+    survivalTimes[i] = [];
+    lastAppearance[i] = -1;
+  }
+  
+  // 從最新到最舊遍歷
+  for (let i = 0; i < filtered.length; i++) {
+    const period = filtered[i];
+    for (let num = 1; num <= 49; num++) {
+      if (period.numbers.includes(num)) {
+        // 如果之前有記錄最後出現位置，計算生存時間
+        if (lastAppearance[num] >= 0) {
+          const survivalTime = i - lastAppearance[num];
+          survivalTimes[num].push(survivalTime);
+        }
+        lastAppearance[num] = i;
+      }
+    }
+  }
+  
+  // 計算當前生存時間（距離最後一次出現的期數）
+  const currentSurvivalTime = {};
+  for (let num = 1; num <= 49; num++) {
+    if (lastAppearance[num] >= 0) {
+      currentSurvivalTime[num] = lastAppearance[num];
+    } else {
+      currentSurvivalTime[num] = filtered.length; // 從未出現
+    }
+  }
+  
+  // 計算危險率（hazard rate）：在給定時間t，號碼在下一期出現的條件機率
+  const hazardRates = {};
+  for (let num = 1; num <= 49; num++) {
+    const times = survivalTimes[num];
+    if (times.length === 0) {
+      // 如果從未出現過，使用平均生存時間
+      const avgSurvivalTime = filtered.length / 2;
+      hazardRates[num] = 1 / (avgSurvivalTime + 1);
+    } else {
+      // 計算平均生存時間
+      const avgSurvivalTime = times.reduce((a, b) => a + b, 0) / times.length;
+      const currentTime = currentSurvivalTime[num];
+      
+      // 使用指數分布模型：hazard rate = 1 / mean
+      // 如果當前生存時間接近或超過平均生存時間，危險率增加
+      const baseHazard = 1 / (avgSurvivalTime + 1);
+      const timeRatio = currentTime / (avgSurvivalTime + 1);
+      
+      // 如果當前生存時間超過平均，危險率增加
+      hazardRates[num] = baseHazard * (1 + timeRatio * 0.5);
+    }
+    
+    // 將危險率轉換為分數（0-100）
+    survivalScore[num] = Math.min(100, hazardRates[num] * 200);
+  }
+  
+  return {
+    scores: survivalScore,
+    survivalTimes: survivalTimes,
+    hazardRates: hazardRates
+  };
+}
+
+/**
+ * 計算極值理論 (Extreme Value Theory) 分數
+ * 分析極端事件（如某號碼長期未出現）的分布，評估「冷門號碼」出現的機率
+ * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @param {Set} excludePeriodNumbers - 可選，要排除的期數集合（期數字串）
+ * @param {Array} filteredNumbers - 可選，預先過濾後的數組（性能優化，避免重複過濾）
+ * @returns {Object} 極值理論分數
+ */
+function calculateExtremeValueScore(allNumbers, excludePeriodNumbers = null, filteredNumbers = null) {
+  const extremeScore = {};
+  
+  // 初始化所有可能的號碼 (1-49)
+  for (let i = 1; i <= 49; i++) {
+    extremeScore[i] = 0;
+  }
+  
+  // 使用預過濾的數組（如果提供），否則過濾
+  const filtered = filteredNumbers || (excludePeriodNumbers 
+    ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+    : allNumbers);
+  
+  if (filtered.length < 10) {
+    return { scores: extremeScore, extremeGaps: {}, returnLevels: {} };
+  }
+  
+  // 計算每個號碼的最大間隔（極值）
+  const gaps = {}; // 記錄所有間隔
+  const maxGaps = {}; // 記錄最大間隔
+  const lastAppearance = {}; // 記錄最後一次出現的位置
+  
+  // 初始化
+  for (let i = 1; i <= 49; i++) {
+    gaps[i] = [];
+    maxGaps[i] = 0;
+    lastAppearance[i] = -1;
+  }
+  
+  // 計算間隔
+  for (let i = 0; i < filtered.length; i++) {
+    const period = filtered[i];
+    for (let num = 1; num <= 49; num++) {
+      if (period.numbers.includes(num)) {
+        if (lastAppearance[num] >= 0) {
+          const gap = i - lastAppearance[num];
+          gaps[num].push(gap);
+          maxGaps[num] = Math.max(maxGaps[num], gap);
+        }
+        lastAppearance[num] = i;
+      }
+    }
+  }
+  
+  // 計算當前間隔
+  const currentGaps = {};
+  for (let num = 1; num <= 49; num++) {
+    if (lastAppearance[num] >= 0) {
+      currentGaps[num] = lastAppearance[num];
+    } else {
+      currentGaps[num] = filtered.length; // 從未出現
+    }
+  }
+  
+  // 使用廣義極值分布 (GEV) 的簡化模型
+  // 計算回歸水平（return level）：在給定時間內，極值超過某個閾值的機率
+  const returnLevels = {};
+  for (let num = 1; num <= 49; num++) {
+    const gapList = gaps[num];
+    if (gapList.length === 0) {
+      // 從未出現，使用極值理論預測
+      const expectedGap = filtered.length / 49; // 期望間隔
+      const extremeThreshold = expectedGap * 2; // 極值閾值
+      const currentGap = currentGaps[num];
+      
+      // 如果當前間隔超過極值閾值，機率增加
+      if (currentGap >= extremeThreshold) {
+        const exceedanceProb = 1 - Math.exp(-currentGap / (expectedGap + 1));
+        returnLevels[num] = exceedanceProb;
+        extremeScore[num] = Math.min(100, exceedanceProb * 150);
+      } else {
+        extremeScore[num] = 30; // 未達到極值閾值，給予較低分數
+      }
+    } else {
+      // 計算統計量
+      const sortedGaps = [...gapList].sort((a, b) => a - b);
+      const meanGap = gapList.reduce((a, b) => a + b, 0) / gapList.length;
+      const maxGap = maxGaps[num];
+      const currentGap = currentGaps[num];
+      
+      // 使用極值理論：如果當前間隔接近或超過歷史最大間隔，機率增加
+      if (currentGap >= maxGap * 0.8) {
+        // 接近歷史極值，使用極值分布模型
+        const exceedanceProb = 1 - Math.exp(-(currentGap - meanGap) / (maxGap - meanGap + 1));
+        returnLevels[num] = exceedanceProb;
+        extremeScore[num] = Math.min(100, exceedanceProb * 120);
+      } else if (currentGap >= meanGap * 1.5) {
+        // 超過平均間隔的1.5倍，給予中等分數
+        const ratio = currentGap / (meanGap + 1);
+        extremeScore[num] = Math.min(100, 50 + ratio * 20);
+      } else {
+        extremeScore[num] = 30;
+      }
+    }
+  }
+  
+  return {
+    scores: extremeScore,
+    extremeGaps: maxGaps,
+    returnLevels: returnLevels
+  };
+}
+
+/**
+ * 計算聚類分析 (Cluster Analysis) 分數
+ * 將號碼分組，識別相似的出現模式，發現號碼之間的關聯性
+ * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @param {Set} excludePeriodNumbers - 可選，要排除的期數集合（期數字串）
+ * @param {Array} filteredNumbers - 可選，預先過濾後的數組（性能優化，避免重複過濾）
+ * @param {number} numClusters - 聚類數量，預設為7（接近每期號碼數）
+ * @returns {Object} 聚類分析分數
+ */
+function calculateClusterAnalysisScore(allNumbers, excludePeriodNumbers = null, filteredNumbers = null, numClusters = 7) {
+  const clusterScore = {};
+  
+  // 初始化所有可能的號碼 (1-49)
+  for (let i = 1; i <= 49; i++) {
+    clusterScore[i] = 0;
+  }
+  
+  // 使用預過濾的數組（如果提供），否則過濾
+  const filtered = filteredNumbers || (excludePeriodNumbers 
+    ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+    : allNumbers);
+  
+  if (filtered.length < numClusters) {
+    return { scores: clusterScore, clusters: {}, clusterCenters: {} };
+  }
+  
+  // 建立號碼出現模式向量（每期是否出現）
+  const appearanceVectors = {};
+  for (let num = 1; num <= 49; num++) {
+    appearanceVectors[num] = [];
+    for (let i = 0; i < filtered.length; i++) {
+      appearanceVectors[num].push(filtered[i].numbers.includes(num) ? 1 : 0);
+    }
+  }
+  
+  // 計算號碼之間的相似度（使用餘弦相似度）
+  const similarityMatrix = {};
+  for (let i = 1; i <= 49; i++) {
+    similarityMatrix[i] = {};
+    for (let j = 1; j <= 49; j++) {
+      if (i === j) {
+        similarityMatrix[i][j] = 1;
+      } else {
+        const vec1 = appearanceVectors[i];
+        const vec2 = appearanceVectors[j];
+        let dotProduct = 0;
+        let norm1 = 0;
+        let norm2 = 0;
+        
+        for (let k = 0; k < vec1.length; k++) {
+          dotProduct += vec1[k] * vec2[k];
+          norm1 += vec1[k] * vec1[k];
+          norm2 += vec2[k] * vec2[k];
+        }
+        
+        const similarity = (norm1 > 0 && norm2 > 0) 
+          ? dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2))
+          : 0;
+        similarityMatrix[i][j] = similarity;
+      }
+    }
+  }
+  
+  // 使用簡化的K-means聚類（基於相似度）
+  // 選擇初始聚類中心（選擇相似度較低的號碼作為中心）
+  const clusterCenters = [];
+  const used = new Set();
+  
+  // 隨機選擇第一個中心
+  let firstCenter = Math.floor(Math.random() * 49) + 1;
+  clusterCenters.push(firstCenter);
+  used.add(firstCenter);
+  
+  // 選擇其他中心（選擇與已選中心相似度較低的號碼）
+  while (clusterCenters.length < numClusters && used.size < 49) {
+    let bestCandidate = null;
+    let minSimilarity = Infinity;
+    
+    for (let num = 1; num <= 49; num++) {
+      if (!used.has(num)) {
+        let maxSimilarityToCenters = 0;
+        for (const center of clusterCenters) {
+          maxSimilarityToCenters = Math.max(maxSimilarityToCenters, similarityMatrix[num][center]);
+        }
+        
+        if (maxSimilarityToCenters < minSimilarity) {
+          minSimilarity = maxSimilarityToCenters;
+          bestCandidate = num;
+        }
+      }
+    }
+    
+    if (bestCandidate) {
+      clusterCenters.push(bestCandidate);
+      used.add(bestCandidate);
+    } else {
+      break;
+    }
+  }
+  
+  // 將每個號碼分配到最近的聚類
+  const clusters = {};
+  clusterCenters.forEach((center, idx) => {
+    clusters[idx] = [center];
+  });
+  
+  for (let num = 1; num <= 49; num++) {
+    if (!used.has(num)) {
+      let bestCluster = 0;
+      let maxSimilarity = -1;
+      
+      clusterCenters.forEach((center, idx) => {
+        const similarity = similarityMatrix[num][center];
+        if (similarity > maxSimilarity) {
+          maxSimilarity = similarity;
+          bestCluster = idx;
+        }
+      });
+      
+      clusters[bestCluster].push(num);
+    }
+  }
+  
+  // 分析最新一期的號碼屬於哪些聚類
+  const latestPeriod = filtered[0];
+  const latestNumbers = latestPeriod.numbers;
+  const clusterFrequencies = {}; // 每個聚類在最新一期出現的號碼數
+  
+  for (let i = 0; i < numClusters; i++) {
+    clusterFrequencies[i] = 0;
+  }
+  
+  latestNumbers.forEach(num => {
+    for (let i = 0; i < numClusters; i++) {
+      if (clusters[i].includes(num)) {
+        clusterFrequencies[i]++;
+        break;
+      }
+    }
+  });
+  
+  // 計算每個號碼的分數
+  // 如果號碼所在的聚類在最新一期出現較多，該聚類的其他號碼可能也會出現
+  for (let num = 1; num <= 49; num++) {
+    let score = 0;
+    
+    // 找到號碼所屬的聚類
+    for (let i = 0; i < numClusters; i++) {
+      if (clusters[i].includes(num)) {
+        // 如果該聚類在最新一期有號碼出現，給予加分
+        const clusterFreq = clusterFrequencies[i];
+        if (clusterFreq > 0) {
+          // 聚類中出現的號碼越多，分數越高
+          score += clusterFreq * 15;
+        }
+        
+        // 如果號碼與聚類中心的相似度高，給予加分
+        const center = clusterCenters[i];
+        if (center) {
+          const similarity = similarityMatrix[num][center];
+          score += similarity * 20;
+        }
+        break;
+      }
+    }
+    
+    clusterScore[num] = Math.min(100, score);
+  }
+  
+  return {
+    scores: clusterScore,
+    clusters: clusters,
+    clusterCenters: clusterCenters
+  };
+}
+
 module.exports = {
   calculateFrequency,
   calculateWeightedFrequency,
@@ -833,5 +1334,9 @@ module.exports = {
   calculateCorrelationScore,
   calculateEntropyScore,
   calculateMarkovChainScore,
-  calculateCombinatorialScore
+  calculateCombinatorialScore,
+  calculateAutoregressiveScore,
+  calculateSurvivalAnalysisScore,
+  calculateExtremeValueScore,
+  calculateClusterAnalysisScore
 };

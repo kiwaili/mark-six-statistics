@@ -28,7 +28,11 @@ const {
   calculateCorrelationScore,
   calculateEntropyScore,
   calculateMarkovChainScore,
-  calculateCombinatorialScore
+  calculateCombinatorialScore,
+  calculateAutoregressiveScore,
+  calculateSurvivalAnalysisScore,
+  calculateExtremeValueScore,
+  calculateClusterAnalysisScore
 } = require('./calculators');
 
 // 導入斐波那契分析
@@ -87,6 +91,12 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
   const entropyResult = calculateEntropyScore(allNumbers, excludePeriodNumbers, filteredNumbers);
   const markovResult = calculateMarkovChainScore(allNumbers, excludePeriodNumbers, filteredNumbers);
   const combinatorialResult = calculateCombinatorialScore(allNumbers, excludePeriodNumbers, filteredNumbers);
+  
+  // 計算新增的高級統計分析方法（用於提高命中數）
+  const autoregressiveResult = calculateAutoregressiveScore(allNumbers, excludePeriodNumbers, filteredNumbers);
+  const survivalResult = calculateSurvivalAnalysisScore(allNumbers, excludePeriodNumbers, filteredNumbers);
+  const extremeValueResult = calculateExtremeValueScore(allNumbers, excludePeriodNumbers, filteredNumbers);
+  const clusterResult = calculateClusterAnalysisScore(allNumbers, excludePeriodNumbers, filteredNumbers);
 
   // 正規化各項分數到 0-100 範圍
   const normalize = (scores) => {
@@ -115,27 +125,36 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
   const normalizedEntropyScore = normalize(entropyResult.scores);
   const normalizedMarkovScore = normalize(markovResult.scores);
   const normalizedCombinatorialScore = normalize(combinatorialResult.scores);
+  const normalizedAutoregressiveScore = normalize(autoregressiveResult.scores);
+  const normalizedSurvivalScore = normalize(survivalResult.scores);
+  const normalizedExtremeValueScore = normalize(extremeValueResult.scores);
+  const normalizedClusterScore = normalize(clusterResult.scores);
 
   // 計算綜合分數（加權組合）
-  // 優化權重分配以提高準確率：更重視趨勢和分布分析
-  // 預設權重: 頻率: 8%, 加權頻率: 10%, 間隔: 10%, 模式: 6%, 分布: 10%, 趨勢: 9%, 卡方: 3%, 泊松: 3%, 斐波那契: 8%
-  // 新增方法權重: 相關性: 8%, 熵: 6%, 馬可夫鏈: 10%, 組合數學: 9%
+  // 優化權重分配以提高準確率和命中數：更重視趨勢、分布分析和新增的高級方法
+  // 預設權重: 頻率: 7%, 加權頻率: 9%, 間隔: 9%, 模式: 5%, 分布: 9%, 趨勢: 8%, 卡方: 3%, 泊松: 3%, 斐波那契: 7%
+  // 原有新增方法權重: 相關性: 7%, 熵: 5%, 馬可夫鏈: 9%, 組合數學: 8%
+  // 新增高級方法權重: 自回歸: 6%, 生存分析: 7%, 極值理論: 6%, 聚類分析: 7%
   // 注意：迭代驗證會根據實際表現動態調整所有權重。
   // 如果提供了自訂權重，則使用自訂權重
   const defaultWeights = {
-    frequency: 0.08,
-    weightedFrequency: 0.10,
-    gap: 0.10,
-    pattern: 0.06,
-    distribution: 0.10,
-    trend: 0.09,
+    frequency: 0.07,
+    weightedFrequency: 0.09,
+    gap: 0.09,
+    pattern: 0.05,
+    distribution: 0.09,
+    trend: 0.08,
     chiSquare: 0.03,
     poisson: 0.03,
-    fibonacci: 0.08,
-    correlation: 0.08,
-    entropy: 0.06,
-    markov: 0.10,
-    combinatorial: 0.09
+    fibonacci: 0.07,
+    correlation: 0.07,
+    entropy: 0.05,
+    markov: 0.09,
+    combinatorial: 0.08,
+    autoregressive: 0.06,
+    survival: 0.07,
+    extremeValue: 0.06,
+    cluster: 0.07
   };
   
   const finalWeights = {
@@ -151,14 +170,19 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
     correlation: weights.correlation !== undefined ? weights.correlation : defaultWeights.correlation,
     entropy: weights.entropy !== undefined ? weights.entropy : defaultWeights.entropy,
     markov: weights.markov !== undefined ? weights.markov : defaultWeights.markov,
-    combinatorial: weights.combinatorial !== undefined ? weights.combinatorial : defaultWeights.combinatorial
+    combinatorial: weights.combinatorial !== undefined ? weights.combinatorial : defaultWeights.combinatorial,
+    autoregressive: weights.autoregressive !== undefined ? weights.autoregressive : defaultWeights.autoregressive,
+    survival: weights.survival !== undefined ? weights.survival : defaultWeights.survival,
+    extremeValue: weights.extremeValue !== undefined ? weights.extremeValue : defaultWeights.extremeValue,
+    cluster: weights.cluster !== undefined ? weights.cluster : defaultWeights.cluster
   };
   
   // 正規化權重，確保總和為1
   const totalWeight = finalWeights.frequency + finalWeights.weightedFrequency + finalWeights.gap + 
                       finalWeights.pattern + finalWeights.distribution + finalWeights.trend + 
                       finalWeights.chiSquare + finalWeights.poisson + finalWeights.fibonacci +
-                      finalWeights.correlation + finalWeights.entropy + finalWeights.markov + finalWeights.combinatorial;
+                      finalWeights.correlation + finalWeights.entropy + finalWeights.markov + finalWeights.combinatorial +
+                      finalWeights.autoregressive + finalWeights.survival + finalWeights.extremeValue + finalWeights.cluster;
   if (totalWeight > 0) {
     Object.keys(finalWeights).forEach(key => {
       finalWeights[key] = finalWeights[key] / totalWeight;
@@ -181,7 +205,11 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
       normalizedCorrelationScore[i] * finalWeights.correlation +
       normalizedEntropyScore[i] * finalWeights.entropy +
       normalizedMarkovScore[i] * finalWeights.markov +
-      normalizedCombinatorialScore[i] * finalWeights.combinatorial;
+      normalizedCombinatorialScore[i] * finalWeights.combinatorial +
+      normalizedAutoregressiveScore[i] * finalWeights.autoregressive +
+      normalizedSurvivalScore[i] * finalWeights.survival +
+      normalizedExtremeValueScore[i] * finalWeights.extremeValue +
+      normalizedClusterScore[i] * finalWeights.cluster;
   }
   
   // 取得前 40 名（增加候選數量以提高命中至少3個的概率，目標平均命中數至少3）
@@ -201,7 +229,11 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
       correlationScore: Math.round(correlationResult.scores[num] * 100) / 100,
       entropyScore: Math.round(entropyResult.scores[num] * 100) / 100,
       markovScore: Math.round(markovResult.scores[num] * 100) / 100,
-      combinatorialScore: Math.round(combinatorialResult.scores[num] * 100) / 100
+      combinatorialScore: Math.round(combinatorialResult.scores[num] * 100) / 100,
+      autoregressiveScore: Math.round(autoregressiveResult.scores[num] * 100) / 100,
+      survivalScore: Math.round(survivalResult.scores[num] * 100) / 100,
+      extremeValueScore: Math.round(extremeValueResult.scores[num] * 100) / 100,
+      clusterScore: Math.round(clusterResult.scores[num] * 100) / 100
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 40); // 增加到40個候選號碼，提供更多選擇以提高命中率
@@ -315,6 +347,26 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
       combinatorial: {
         scores: combinatorialResult.scores,
         patterns: combinatorialResult.patterns
+      },
+      autoregressive: {
+        scores: autoregressiveResult.scores,
+        coefficients: autoregressiveResult.coefficients,
+        predictions: autoregressiveResult.predictions
+      },
+      survival: {
+        scores: survivalResult.scores,
+        survivalTimes: survivalResult.survivalTimes,
+        hazardRates: survivalResult.hazardRates
+      },
+      extremeValue: {
+        scores: extremeValueResult.scores,
+        extremeGaps: extremeValueResult.extremeGaps,
+        returnLevels: extremeValueResult.returnLevels
+      },
+      cluster: {
+        scores: clusterResult.scores,
+        clusters: clusterResult.clusters,
+        clusterCenters: clusterResult.clusterCenters
       }
     }
   };
