@@ -871,7 +871,6 @@ function calculateAutoregressiveScore(allNumbers, excludePeriodNumbers = null, f
   }
   
   // 對每個號碼計算加權移動平均
-  const coefficients = {};
   const predictions = {};
   
   for (let num = 1; num <= 49; num++) {
@@ -889,7 +888,6 @@ function calculateAutoregressiveScore(allNumbers, excludePeriodNumbers = null, f
   
   return {
     scores: weightedRecentScore,
-    coefficients: coefficients,
     predictions: predictions
   };
 }
