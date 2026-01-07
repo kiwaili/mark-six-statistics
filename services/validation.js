@@ -469,8 +469,14 @@ function iterativeValidation(allResults, lookbackPeriods = 100) {
     throw new Error('analyzeNumbers 函數未設置。請先調用 setAnalyzeNumbers()');
   }
   
-  if (!allResults || allResults.length < lookbackPeriods + 1) {
-    throw new Error(`資料不足，需要至少 ${lookbackPeriods + 1} 期資料`);
+  if (!allResults || allResults.length < 1) {
+    throw new Error('資料不足，需要至少 1 期資料');
+  }
+  
+  // 如果資料不足 101 期，就用現在有的資料
+  // 如果只有1期，lookbackPeriods 會是 0（沒有歷史資料可驗證，但仍可使用該期資料）
+  if (allResults.length < lookbackPeriods + 1) {
+    lookbackPeriods = Math.max(0, allResults.length - 1);
   }
   
   // 找到最新期數
