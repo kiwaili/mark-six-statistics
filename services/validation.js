@@ -584,11 +584,11 @@ function iterativeValidation(allResults, lookbackPeriods = 100) {
   // 包含所有13種統計方法的權重配置
   const initialWeightSets = [
     // 配置1：默認權重（平衡配置）
-    { frequency: 0.07, weightedFrequency: 0.09, gap: 0.09, pattern: 0.05, distribution: 0.09, trend: 0.08, chiSquare: 0.03, poisson: 0.03, fibonacci: 0.07, correlation: 0.07, entropy: 0.05, markov: 0.09, combinatorial: 0.08, autoregressive: 0.06, survival: 0.07, extremeValue: 0.06, cluster: 0.07 },
+    { frequency: 0.0609, weightedFrequency: 0.0783, gap: 0.0783, pattern: 0.0435, distribution: 0.0783, trend: 0.0696, chiSquare: 0.0261, poisson: 0.0261, fibonacci: 0.0609, correlation: 0.0609, entropy: 0.0435, markov: 0.0783, combinatorial: 0.0696, autoregressive: 0.0522, survival: 0.0609, extremeValue: 0.0522, cluster: 0.0604 },
     // 配置2：重視間隔和馬可夫鏈
-    { frequency: 0.06, weightedFrequency: 0.08, gap: 0.15, pattern: 0.05, distribution: 0.10, trend: 0.08, chiSquare: 0.02, poisson: 0.02, fibonacci: 0.06, correlation: 0.08, entropy: 0.05, markov: 0.15, combinatorial: 0.10, autoregressive: 0.06, survival: 0.07, extremeValue: 0.06, cluster: 0.07 },
+    { frequency: 0.0476, weightedFrequency: 0.0635, gap: 0.1190, pattern: 0.0397, distribution: 0.0794, trend: 0.0635, chiSquare: 0.0159, poisson: 0.0159, fibonacci: 0.0476, correlation: 0.0635, entropy: 0.0397, markov: 0.1190, combinatorial: 0.0794, autoregressive: 0.0476, survival: 0.0556, extremeValue: 0.0476, cluster: 0.0555 },
     // 配置3：重視加權頻率和分布
-    { frequency: 0.06, weightedFrequency: 0.15, gap: 0.08, pattern: 0.05, distribution: 0.15, trend: 0.10, chiSquare: 0.03, poisson: 0.03, fibonacci: 0.07, correlation: 0.08, entropy: 0.06, markov: 0.08, combinatorial: 0.06, autoregressive: 0.06, survival: 0.07, extremeValue: 0.06, cluster: 0.07 },
+    { frequency: 0.0476, weightedFrequency: 0.1190, gap: 0.0635, pattern: 0.0397, distribution: 0.1190, trend: 0.0794, chiSquare: 0.0238, poisson: 0.0238, fibonacci: 0.0556, correlation: 0.0635, entropy: 0.0476, markov: 0.0635, combinatorial: 0.0476, autoregressive: 0.0476, survival: 0.0556, extremeValue: 0.0476, cluster: 0.0556 },
     // 配置4：重視趨勢和組合數學
     { frequency: 0.07, weightedFrequency: 0.09, gap: 0.09, pattern: 0.05, distribution: 0.09, trend: 0.15, chiSquare: 0.02, poisson: 0.02, fibonacci: 0.07, correlation: 0.07, entropy: 0.05, markov: 0.09, combinatorial: 0.15 },
     // 配置5：重視相關性和熵分析

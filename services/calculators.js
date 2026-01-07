@@ -857,68 +857,7 @@ function calculateAutoregressiveScore(allNumbers, excludePeriodNumbers = null, f
       appearances.push(filtered[i].numbers.includes(num) ? 1 : 0);
     }
     
-    // 計算AR係數（使用最小二乘法）
-    const n = appearances.length;
-    const X = []; // 設計矩陣
-    const y = []; // 目標向量
-    
-    for (let i = order; i < n; i++) {
-      const row = [1]; // 截距項
-      for (let j = 1; j <= order; j++) {
-        row.push(appearances[i - j]);
-      }
-      X.push(row);
-      y.push(appearances[i]);
-    }
-    
-    // 簡單的最小二乘估計（使用正規方程）
-    let coeffs = null;
-    if (X.length > 0 && X[0].length > 0) {
-      // 計算 X'X 和 X'y
-      const XtX = [];
-      const Xty = [];
-      const p = X[0].length;
-      
-      for (let i = 0; i < p; i++) {
-        XtX[i] = [];
-        Xty[i] = 0;
-        for (let j = 0; j < p; j++) {
-          let sum = 0;
-          for (let k = 0; k < X.length; k++) {
-            sum += X[k][i] * X[k][j];
-          }
-          XtX[i][j] = sum;
-        }
-        for (let k = 0; k < X.length; k++) {
-          Xty[i] += X[k][i] * y[k];
-        }
-      }
-      
-      // 簡單的高斯消元法求解（簡化版）
-      // 如果矩陣可逆，計算係數
-      try {
-        // 使用簡化的方法：直接計算加權平均
-        let weightedSum = 0;
-        let totalWeight = 0;
-        for (let i = order; i < n; i++) {
-          let weight = 0;
-          for (let j = 1; j <= order; j++) {
-            weight += appearances[i - j] * (1 / j); // 越近的期數權重越高
-          }
-          weightedSum += appearances[i] * weight;
-          totalWeight += weight;
-        }
-        
-        const avgCoeff = totalWeight > 0 ? weightedSum / totalWeight : 0;
-        coeffs = [avgCoeff];
-      } catch (e) {
-        coeffs = [0];
-      }
-    }
-    
-    if (coeffs) {
-      coefficients[num] = coeffs;
-      
+    if (appearances.length >= order) {
       // 使用AR模型預測下一期
       let prediction = 0;
       for (let j = 1; j <= order; j++) {
