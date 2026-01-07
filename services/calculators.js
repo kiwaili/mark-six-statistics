@@ -920,12 +920,14 @@ function calculateAutoregressiveScore(allNumbers, excludePeriodNumbers = null, f
       coefficients[num] = coeffs;
       
       // 使用AR模型預測下一期
-      let prediction = coeffs[0]; // 截距
+      let prediction = 0;
       for (let j = 1; j <= order; j++) {
         if (appearances.length >= j) {
-          prediction += coeffs[0] * appearances[appearances.length - j] * (1 / j);
+          prediction += appearances[appearances.length - j] * (1 / j);
         }
       }
+      // 正規化預測值
+      prediction = prediction / order;
       
       predictions[num] = Math.max(0, Math.min(1, prediction));
       
@@ -1276,13 +1278,19 @@ function calculateClusterAnalysisScore(allNumbers, excludePeriodNumbers = null, 
   for (let i = 0; i < numClusters; i++) {
     clusterFrequencies[i] = 0;
   }
+
+  // 建立號碼到聚類的映射表
+  const numberToCluster = {};
+  for (let i = 0; i < numClusters; i++) {
+    clusters[i].forEach(num => {
+      numberToCluster[num] = i;
+    });
+  }
   
   latestNumbers.forEach(num => {
-    for (let i = 0; i < numClusters; i++) {
-      if (clusters[i].includes(num)) {
-        clusterFrequencies[i]++;
-        break;
-      }
+    const clusterId = numberToCluster[num];
+    if (clusterId !== undefined) {
+      clusterFrequencies[clusterId]++;
     }
   });
   

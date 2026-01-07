@@ -584,7 +584,7 @@ function iterativeValidation(allResults, lookbackPeriods = 100) {
   // 包含所有13種統計方法的權重配置
   const initialWeightSets = [
     // 配置1：默認權重（平衡配置）
-    { frequency: 0.08, weightedFrequency: 0.10, gap: 0.10, pattern: 0.06, distribution: 0.10, trend: 0.09, chiSquare: 0.03, poisson: 0.03, fibonacci: 0.08, correlation: 0.08, entropy: 0.06, markov: 0.10, combinatorial: 0.09 },
+    { frequency: 0.07, weightedFrequency: 0.09, gap: 0.09, pattern: 0.05, distribution: 0.09, trend: 0.08, chiSquare: 0.03, poisson: 0.03, fibonacci: 0.07, correlation: 0.07, entropy: 0.05, markov: 0.09, combinatorial: 0.08, autoregressive: 0.06, survival: 0.07, extremeValue: 0.06, cluster: 0.07 },
     // 配置2：重視間隔和馬可夫鏈
     { frequency: 0.06, weightedFrequency: 0.08, gap: 0.15, pattern: 0.05, distribution: 0.10, trend: 0.08, chiSquare: 0.02, poisson: 0.02, fibonacci: 0.06, correlation: 0.08, entropy: 0.05, markov: 0.15, combinatorial: 0.10 },
     // 配置3：重視加權頻率和分布
