@@ -1024,6 +1024,64 @@
                 return periodB.period - periodA.period;
             };
             
+            // 計算下一期期數（用於最終預測）
+            const parsePeriod = (periodStr) => {
+                return parsePeriodNumber(periodStr, { convertYear: false, returnNull: true });
+            };
+            
+            const latestPeriodParsed = parsePeriod(validationData.latestPeriod);
+            let nextPeriodStr = '下一期';
+            if (latestPeriodParsed) {
+                const nextPeriod = latestPeriodParsed.period + 1;
+                // 統一使用 00/000 格式顯示目標期數
+                // 從年份中提取2位數年份（如果是4位數年份，取後2位；如果是2位數年份，直接使用）
+                let year2Digit = latestPeriodParsed.year;
+                if (year2Digit >= 1000) {
+                    year2Digit = year2Digit % 100; // 取後2位
+                }
+                // 格式：YY/PPP（例如：25/001）
+                nextPeriodStr = `${String(year2Digit).padStart(2, '0')}/${String(nextPeriod).padStart(3, '0')}`;
+            }
+            
+            // 獲取最終預測號碼（如果有 latestPeriodPrediction，使用它；否則嘗試從驗證結果中獲取）
+            let finalPredictedNumbers = [];
+            if (validationData.latestPeriodPrediction && validationData.latestPeriodPrediction.predictedNumbers) {
+                // 確保號碼由小到大排序
+                finalPredictedNumbers = [...validationData.latestPeriodPrediction.predictedNumbers].sort((a, b) => a - b);
+            } else {
+                // 如果沒有 latestPeriodPrediction，嘗試從最新的驗證結果中獲取預測號碼
+                // 這通常不會發生，因為後端應該已經計算了 latestPeriodPrediction
+                console.warn('未找到 latestPeriodPrediction，將顯示空預測');
+            }
+            
+            // 在表格開頭加入最終預測行（使用最新期數作為訓練期數）
+            if (finalPredictedNumbers.length > 0) {
+                const finalPredictedNumbersHtml = finalPredictedNumbers.map(num => 
+                    `<span class="number-badge" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.2); font-weight: bold; font-size: 14px;">${num}</span>`
+                ).join('');
+                
+                html += `
+                    <tr style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%); border-top: 3px solid #667eea; border-bottom: 2px solid #667eea;">
+                        <td data-label="訓練期數"><strong style="color: #667eea; font-size: 1.1em;">${validationData.latestPeriod}</strong> <span style="color: #f093fb; font-size: 0.9em;" title="使用最新期數作為訓練期數">⭐</span></td>
+                        <td data-label="目標期數"><strong style="color: #667eea; font-size: 1.1em;">${nextPeriodStr}</strong></td>
+                        <td data-label="預測號碼">${finalPredictedNumbersHtml || '無'}</td>
+                        <td data-label="實際號碼"><span style="color: #999; font-style: italic;">待開獎</span></td>
+                        <td data-label="命中數"><span style="color: #999; font-style: italic;">-</span></td>
+                        <td data-label="準確率"><span style="color: #999; font-style: italic;">-</span></td>
+                        <td data-label="覆蓋率"><span style="color: #999; font-style: italic;">-</span></td>
+                    </tr>
+                `;
+            } else {
+                // 如果沒有預測號碼，仍然顯示一行提示
+                html += `
+                    <tr style="background: rgba(255, 193, 7, 0.1); border-top: 2px solid #ffc107;">
+                        <td data-label="訓練期數"><strong style="color: #667eea;">${validationData.latestPeriod}</strong></td>
+                        <td data-label="目標期數"><strong style="color: #667eea;">${nextPeriodStr}</strong></td>
+                        <td data-label="預測號碼" colspan="5"><span style="color: #999; font-style: italic;">預測計算中...</span></td>
+                    </tr>
+                `;
+            }
+            
             // 對驗證結果進行排序（按目標期數新至舊排序，不改變計算，只改變顯示）
             const sortedResults = [...validationData.validationResults].sort(comparePeriods);
             
@@ -1035,10 +1093,33 @@
                 // 命中數的顏色標記
                 const hitColor = hitCount >= 3 ? '#28a745' : hitCount >= 1 ? '#ffc107' : '#dc3545';
                 
-                // 格式化號碼顯示
-                const predictedNumbers = result.predictedNumbers.map(num => 
-                    `<span class="number-badge" style="background: ${result.comparison.hits.includes(num) ? '#28a745' : '#667eea'}">${num}</span>`
-                ).join('');
+                // 獲取實際號碼的最後一個號碼（確保類型一致）
+                const lastActualNumber = result.actualNumbers && result.actualNumbers.length > 0 
+                    ? Number(result.actualNumbers[result.actualNumbers.length - 1]) 
+                    : null;
+                
+                // 格式化號碼顯示（確保號碼由小到大排序）
+                const sortedPredictedNumbers = [...result.predictedNumbers].sort((a, b) => a - b);
+                const predictedNumbers = sortedPredictedNumbers.map(num => {
+                    const numValue = Number(num);
+                    let bgStyle = '';
+                    
+                    // 優先檢查：如果號碼是實際號碼的最後一個號碼，顯示一半綠色一半藍色
+                    if (lastActualNumber !== null && numValue === lastActualNumber) {
+                        // 使用更明確的漸變語法，確保左右各一半
+                        bgStyle = 'background: linear-gradient(90deg, #28a745 0%, #28a745 49.9%, #667eea 50.1%, #667eea 100%) !important;';
+                    }
+                    // 如果號碼在命中列表中，顯示綠色
+                    else if (result.comparison.hits && result.comparison.hits.some(hit => Number(hit) === numValue)) {
+                        bgStyle = 'background: #28a745 !important;';
+                    }
+                    // 其他情況顯示藍色
+                    else {
+                        bgStyle = 'background: #667eea !important;';
+                    }
+                    
+                    return `<span class="number-badge" style="${bgStyle}">${num}</span>`;
+                }).join('');
                 
                 const actualNumbers = result.actualNumbers.map(num => 
                     `<span class="number-badge">${num}</span>`
