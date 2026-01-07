@@ -17,6 +17,14 @@
    - `calculateTrendAnalysis`
    - `calculateChiSquareScore`
    - `calculatePoissonScore`
+   - `calculateCorrelationScore`
+   - `calculateEntropyScore`
+   - `calculateMarkovChainScore`
+   - `calculateCombinatorialScore`
+   - `calculateAutoregressiveScore` ✅ New
+   - `calculateSurvivalAnalysisScore` ✅ New
+   - `calculateExtremeValueScore` ✅ New
+   - `calculateClusterAnalysisScore` ✅ New
 
 3. **fibonacci.js** - Fibonacci analysis
    - `calculateFibonacciScore`

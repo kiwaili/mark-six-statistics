@@ -99,7 +99,11 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
     correlation: 0,
     entropy: 0,
     markov: 0,
-    combinatorial: 0
+    combinatorial: 0,
+    autoregressive: 0,
+    survival: 0,
+    extremeValue: 0,
+    cluster: 0
   };
   
   // 分析命中號碼在各指標中的排名
@@ -153,6 +157,10 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   let performanceEntropy = 0;
   let performanceMarkov = 0;
   let performanceCombinatorial = 0;
+  let performanceAutoregressive = 0;
+  let performanceSurvival = 0;
+  let performanceExtremeValue = 0;
+  let performanceCluster = 0;
   
   if (analysisDetails.distributionScore) {
     const sortedByDistribution = [...allNumbers].sort((a, b) => 
@@ -235,6 +243,42 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
     performanceCombinatorial = (1 / hitRankCombinatorial) - (1 / missRankCombinatorial);
   }
   
+  if (analysisDetails.autoregressive && analysisDetails.autoregressive.scores) {
+    const sortedByAutoregressive = [...allNumbers].sort((a, b) => 
+      analysisDetails.autoregressive.scores[b] - analysisDetails.autoregressive.scores[a]
+    );
+    const hitRankAutoregressive = calculateAverageRank(hitNumbers, sortedByAutoregressive);
+    const missRankAutoregressive = calculateAverageRank(missNumbers, sortedByAutoregressive);
+    performanceAutoregressive = (1 / hitRankAutoregressive) - (1 / missRankAutoregressive);
+  }
+  
+  if (analysisDetails.survival && analysisDetails.survival.scores) {
+    const sortedBySurvival = [...allNumbers].sort((a, b) => 
+      analysisDetails.survival.scores[b] - analysisDetails.survival.scores[a]
+    );
+    const hitRankSurvival = calculateAverageRank(hitNumbers, sortedBySurvival);
+    const missRankSurvival = calculateAverageRank(missNumbers, sortedBySurvival);
+    performanceSurvival = (1 / hitRankSurvival) - (1 / missRankSurvival);
+  }
+  
+  if (analysisDetails.extremeValue && analysisDetails.extremeValue.scores) {
+    const sortedByExtremeValue = [...allNumbers].sort((a, b) => 
+      analysisDetails.extremeValue.scores[b] - analysisDetails.extremeValue.scores[a]
+    );
+    const hitRankExtremeValue = calculateAverageRank(hitNumbers, sortedByExtremeValue);
+    const missRankExtremeValue = calculateAverageRank(missNumbers, sortedByExtremeValue);
+    performanceExtremeValue = (1 / hitRankExtremeValue) - (1 / missRankExtremeValue);
+  }
+  
+  if (analysisDetails.cluster && analysisDetails.cluster.scores) {
+    const sortedByCluster = [...allNumbers].sort((a, b) => 
+      analysisDetails.cluster.scores[b] - analysisDetails.cluster.scores[a]
+    );
+    const hitRankCluster = calculateAverageRank(hitNumbers, sortedByCluster);
+    const missRankCluster = calculateAverageRank(missNumbers, sortedByCluster);
+    performanceCluster = (1 / hitRankCluster) - (1 / missRankCluster);
+  }
+  
   // 計算總效能（用於正規化）
   const totalPerformance = Math.abs(performanceFrequency) + 
                           Math.abs(performanceWeightedFrequency) + 
@@ -248,7 +292,11 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
                           Math.abs(performanceCorrelation) +
                           Math.abs(performanceEntropy) +
                           Math.abs(performanceMarkov) +
-                          Math.abs(performanceCombinatorial);
+                          Math.abs(performanceCombinatorial) +
+                          Math.abs(performanceAutoregressive) +
+                          Math.abs(performanceSurvival) +
+                          Math.abs(performanceExtremeValue) +
+                          Math.abs(performanceCluster);
   
   // 根據準確率差距和指標表現調整權重
   // 動態學習率：準確率差距越大，學習率越高
@@ -266,15 +314,19 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   const adjustmentFactor = (accuracyGap / 80) + (hitCountGap > 0 ? hitCountGap * 0.3 : 0); // 更積極的調整幅度，準確率權重更高
   
   // 初始化新權重（如果不存在）
-  if (newWeights.distribution === undefined) newWeights.distribution = 0.10;
-  if (newWeights.trend === undefined) newWeights.trend = 0.09;
+  if (newWeights.distribution === undefined) newWeights.distribution = 0.09;
+  if (newWeights.trend === undefined) newWeights.trend = 0.08;
   if (newWeights.chiSquare === undefined) newWeights.chiSquare = 0.03;
   if (newWeights.poisson === undefined) newWeights.poisson = 0.03;
-  if (newWeights.fibonacci === undefined) newWeights.fibonacci = 0.08;
-  if (newWeights.correlation === undefined) newWeights.correlation = 0.08;
-  if (newWeights.entropy === undefined) newWeights.entropy = 0.06;
-  if (newWeights.markov === undefined) newWeights.markov = 0.10;
-  if (newWeights.combinatorial === undefined) newWeights.combinatorial = 0.09;
+  if (newWeights.fibonacci === undefined) newWeights.fibonacci = 0.07;
+  if (newWeights.correlation === undefined) newWeights.correlation = 0.07;
+  if (newWeights.entropy === undefined) newWeights.entropy = 0.05;
+  if (newWeights.markov === undefined) newWeights.markov = 0.09;
+  if (newWeights.combinatorial === undefined) newWeights.combinatorial = 0.08;
+  if (newWeights.autoregressive === undefined) newWeights.autoregressive = 0.06;
+  if (newWeights.survival === undefined) newWeights.survival = 0.07;
+  if (newWeights.extremeValue === undefined) newWeights.extremeValue = 0.06;
+  if (newWeights.cluster === undefined) newWeights.cluster = 0.07;
   
   if (totalPerformance > 0) {
     // 優先處理命中數不足的情況（命中數至少3是硬性要求）
@@ -323,6 +375,18 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
       if (performanceCombinatorial > 0 && analysisDetails.combinatorial) {
         newWeights.combinatorial += learningRate * adjustmentFactor * criticalMultiplier * (performanceCombinatorial / totalPerformance);
       }
+      if (performanceAutoregressive > 0 && analysisDetails.autoregressive) {
+        newWeights.autoregressive += learningRate * adjustmentFactor * criticalMultiplier * (performanceAutoregressive / totalPerformance);
+      }
+      if (performanceSurvival > 0 && analysisDetails.survival) {
+        newWeights.survival += learningRate * adjustmentFactor * criticalMultiplier * (performanceSurvival / totalPerformance);
+      }
+      if (performanceExtremeValue > 0 && analysisDetails.extremeValue) {
+        newWeights.extremeValue += learningRate * adjustmentFactor * criticalMultiplier * (performanceExtremeValue / totalPerformance);
+      }
+      if (performanceCluster > 0 && analysisDetails.cluster) {
+        newWeights.cluster += learningRate * adjustmentFactor * criticalMultiplier * (performanceCluster / totalPerformance);
+      }
       
       // 減少表現差的指標權重（命中數不足時更積極）
       const reductionMultiplier = isHitCountCritical ? 1.2 : 1.0;
@@ -365,6 +429,18 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
       if (performanceCombinatorial < 0 && analysisDetails.combinatorial) {
         newWeights.combinatorial = Math.max(0.05, newWeights.combinatorial - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performanceCombinatorial) / totalPerformance));
       }
+      if (performanceAutoregressive < 0 && analysisDetails.autoregressive) {
+        newWeights.autoregressive = Math.max(0.05, newWeights.autoregressive - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performanceAutoregressive) / totalPerformance));
+      }
+      if (performanceSurvival < 0 && analysisDetails.survival) {
+        newWeights.survival = Math.max(0.05, newWeights.survival - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performanceSurvival) / totalPerformance));
+      }
+      if (performanceExtremeValue < 0 && analysisDetails.extremeValue) {
+        newWeights.extremeValue = Math.max(0.05, newWeights.extremeValue - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performanceExtremeValue) / totalPerformance));
+      }
+      if (performanceCluster < 0 && analysisDetails.cluster) {
+        newWeights.cluster = Math.max(0.05, newWeights.cluster - learningRate * Math.abs(adjustmentFactor) * reductionMultiplier * (Math.abs(performanceCluster) / totalPerformance));
+      }
     } else {
       // 如果準確率已達標，微調以保持或進一步提升至更高準確率
       // 即使已達標，也要繼續優化以提高準確率
@@ -382,7 +458,11 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
         { name: 'correlation', value: performanceCorrelation, available: !!analysisDetails.correlation },
         { name: 'entropy', value: performanceEntropy, available: !!analysisDetails.entropy },
         { name: 'markov', value: performanceMarkov, available: !!analysisDetails.markov },
-        { name: 'combinatorial', value: performanceCombinatorial, available: !!analysisDetails.combinatorial }
+        { name: 'combinatorial', value: performanceCombinatorial, available: !!analysisDetails.combinatorial },
+        { name: 'autoregressive', value: performanceAutoregressive, available: !!analysisDetails.autoregressive },
+        { name: 'survival', value: performanceSurvival, available: !!analysisDetails.survival },
+        { name: 'extremeValue', value: performanceExtremeValue, available: !!analysisDetails.extremeValue },
+        { name: 'cluster', value: performanceCluster, available: !!analysisDetails.cluster }
       ].filter(p => p.available !== false);
       
       // 選擇表現最好的前2個指標，給予更多權重
@@ -430,25 +510,30 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
   }
   
   // 確保權重範圍合理
-  newWeights.frequency = Math.max(0.05, Math.min(0.5, newWeights.frequency || 0.08));
-  newWeights.weightedFrequency = Math.max(0.05, Math.min(0.5, newWeights.weightedFrequency || 0.10));
-  newWeights.gap = Math.max(0.05, Math.min(0.5, newWeights.gap || 0.10));
-  newWeights.pattern = Math.max(0.05, Math.min(0.5, newWeights.pattern || 0.06));
-  newWeights.distribution = Math.max(0.05, Math.min(0.5, newWeights.distribution || 0.10));
-  newWeights.trend = Math.max(0.05, Math.min(0.5, newWeights.trend || 0.09));
+  newWeights.frequency = Math.max(0.05, Math.min(0.5, newWeights.frequency || 0.07));
+  newWeights.weightedFrequency = Math.max(0.05, Math.min(0.5, newWeights.weightedFrequency || 0.09));
+  newWeights.gap = Math.max(0.05, Math.min(0.5, newWeights.gap || 0.09));
+  newWeights.pattern = Math.max(0.05, Math.min(0.5, newWeights.pattern || 0.05));
+  newWeights.distribution = Math.max(0.05, Math.min(0.5, newWeights.distribution || 0.09));
+  newWeights.trend = Math.max(0.05, Math.min(0.5, newWeights.trend || 0.08));
   newWeights.chiSquare = Math.max(0.05, Math.min(0.5, newWeights.chiSquare || 0.03));
   newWeights.poisson = Math.max(0.05, Math.min(0.5, newWeights.poisson || 0.03));
-  newWeights.fibonacci = Math.max(0.05, Math.min(0.5, newWeights.fibonacci || 0.08));
-  newWeights.correlation = Math.max(0.05, Math.min(0.5, newWeights.correlation || 0.08));
-  newWeights.entropy = Math.max(0.05, Math.min(0.5, newWeights.entropy || 0.06));
-  newWeights.markov = Math.max(0.05, Math.min(0.5, newWeights.markov || 0.10));
-  newWeights.combinatorial = Math.max(0.05, Math.min(0.5, newWeights.combinatorial || 0.09));
+  newWeights.fibonacci = Math.max(0.05, Math.min(0.5, newWeights.fibonacci || 0.07));
+  newWeights.correlation = Math.max(0.05, Math.min(0.5, newWeights.correlation || 0.07));
+  newWeights.entropy = Math.max(0.05, Math.min(0.5, newWeights.entropy || 0.05));
+  newWeights.markov = Math.max(0.05, Math.min(0.5, newWeights.markov || 0.09));
+  newWeights.combinatorial = Math.max(0.05, Math.min(0.5, newWeights.combinatorial || 0.08));
+  newWeights.autoregressive = Math.max(0.05, Math.min(0.5, newWeights.autoregressive || 0.06));
+  newWeights.survival = Math.max(0.05, Math.min(0.5, newWeights.survival || 0.07));
+  newWeights.extremeValue = Math.max(0.05, Math.min(0.5, newWeights.extremeValue || 0.06));
+  newWeights.cluster = Math.max(0.05, Math.min(0.5, newWeights.cluster || 0.07));
   
   // 正規化權重，確保總和為1
   const totalWeight = (newWeights.frequency || 0) + (newWeights.weightedFrequency || 0) + (newWeights.gap || 0) + 
                       (newWeights.pattern || 0) + (newWeights.distribution || 0) + (newWeights.trend || 0) + 
                       (newWeights.chiSquare || 0) + (newWeights.poisson || 0) + (newWeights.fibonacci || 0) +
-                      (newWeights.correlation || 0) + (newWeights.entropy || 0) + (newWeights.markov || 0) + (newWeights.combinatorial || 0);
+                      (newWeights.correlation || 0) + (newWeights.entropy || 0) + (newWeights.markov || 0) + (newWeights.combinatorial || 0) +
+                      (newWeights.autoregressive || 0) + (newWeights.survival || 0) + (newWeights.extremeValue || 0) + (newWeights.cluster || 0);
   if (totalWeight > 0) {
     Object.keys(newWeights).forEach(key => {
       newWeights[key] = newWeights[key] / totalWeight;
@@ -499,11 +584,11 @@ function iterativeValidation(allResults, lookbackPeriods = 100) {
   // 包含所有13種統計方法的權重配置
   const initialWeightSets = [
     // 配置1：默認權重（平衡配置）
-    { frequency: 0.08, weightedFrequency: 0.10, gap: 0.10, pattern: 0.06, distribution: 0.10, trend: 0.09, chiSquare: 0.03, poisson: 0.03, fibonacci: 0.08, correlation: 0.08, entropy: 0.06, markov: 0.10, combinatorial: 0.09 },
+    { frequency: 0.0609, weightedFrequency: 0.0783, gap: 0.0783, pattern: 0.0435, distribution: 0.0783, trend: 0.0696, chiSquare: 0.0261, poisson: 0.0261, fibonacci: 0.0609, correlation: 0.0609, entropy: 0.0435, markov: 0.0783, combinatorial: 0.0696, autoregressive: 0.0522, survival: 0.0609, extremeValue: 0.0522, cluster: 0.0604 },
     // 配置2：重視間隔和馬可夫鏈
-    { frequency: 0.06, weightedFrequency: 0.08, gap: 0.15, pattern: 0.05, distribution: 0.10, trend: 0.08, chiSquare: 0.02, poisson: 0.02, fibonacci: 0.06, correlation: 0.08, entropy: 0.05, markov: 0.15, combinatorial: 0.10 },
+    { frequency: 0.0476, weightedFrequency: 0.0635, gap: 0.1190, pattern: 0.0397, distribution: 0.0794, trend: 0.0635, chiSquare: 0.0159, poisson: 0.0159, fibonacci: 0.0476, correlation: 0.0635, entropy: 0.0397, markov: 0.1190, combinatorial: 0.0794, autoregressive: 0.0476, survival: 0.0556, extremeValue: 0.0476, cluster: 0.0555 },
     // 配置3：重視加權頻率和分布
-    { frequency: 0.06, weightedFrequency: 0.15, gap: 0.08, pattern: 0.05, distribution: 0.15, trend: 0.10, chiSquare: 0.03, poisson: 0.03, fibonacci: 0.07, correlation: 0.08, entropy: 0.06, markov: 0.08, combinatorial: 0.06 },
+    { frequency: 0.0476, weightedFrequency: 0.1190, gap: 0.0635, pattern: 0.0397, distribution: 0.1190, trend: 0.0794, chiSquare: 0.0238, poisson: 0.0238, fibonacci: 0.0556, correlation: 0.0635, entropy: 0.0476, markov: 0.0635, combinatorial: 0.0476, autoregressive: 0.0476, survival: 0.0556, extremeValue: 0.0476, cluster: 0.0556 },
     // 配置4：重視趨勢和組合數學
     { frequency: 0.07, weightedFrequency: 0.09, gap: 0.09, pattern: 0.05, distribution: 0.09, trend: 0.15, chiSquare: 0.02, poisson: 0.02, fibonacci: 0.07, correlation: 0.07, entropy: 0.05, markov: 0.09, combinatorial: 0.15 },
     // 配置5：重視相關性和熵分析
