@@ -1215,8 +1215,16 @@ function calculateClusterAnalysisScore(allNumbers, excludePeriodNumbers = null, 
   const clusterCenters = [];
   const used = new Set();
   
-  // 隨機選擇第一個中心
-  let firstCenter = Math.floor(Math.random() * 49) + 1;
+  // 選擇第一個中心：使用頻率最高的號碼
+  let firstCenter = 1;
+  let maxFreq = 0;
+  for (let num = 1; num <= 49; num++) {
+    const freq = appearanceVectors[num].reduce((a, b) => a + b, 0);
+    if (freq > maxFreq) {
+      maxFreq = freq;
+      firstCenter = num;
+    }
+  }
   clusterCenters.push(firstCenter);
   used.add(firstCenter);
   
