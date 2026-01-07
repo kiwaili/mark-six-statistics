@@ -816,7 +816,98 @@
             
             const container = document.getElementById('resultsContainer');
             
-            let html = `
+            let html = '';
+            
+            // 首先顯示最終預測號碼（最突出）
+            if (validationData.latestPeriodPrediction) {
+                html += `
+                <div style="margin-bottom: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3); position: relative; overflow: hidden;">
+                    <div style="position: absolute; top: -50px; right: -50px; width: 200px; height: 200px; background: rgba(255, 255, 255, 0.1); border-radius: 50%;"></div>
+                    <div style="position: absolute; bottom: -30px; left: -30px; width: 150px; height: 150px; background: rgba(255, 255, 255, 0.1); border-radius: 50%;"></div>
+                    <div style="position: relative; z-index: 1;">
+                        <h2 style="color: white; margin-bottom: 10px; font-size: 2.2em; text-align: center; text-shadow: 3px 3px 6px rgba(0,0,0,0.4);">
+                            🎯 最終預測未來一期號碼
+                        </h2>
+                        <p style="color: rgba(255, 255, 255, 0.95); font-size: 16px; text-align: center; margin-bottom: 25px; font-weight: 500;">
+                            基於迭代驗證與攪出理論分析 | 期數 ${validationData.latestPeriodPrediction.periodNumber} 的下一期預測
+                        </p>
+                        <div style="background: rgba(255, 255, 255, 0.98); padding: 25px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);">
+                            <div style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin: 25px 0; align-items: center;">`;
+                
+                // 顯示預測的6個號碼（更大更突出）
+                validationData.latestPeriodPrediction.predictedNumbers.forEach((num, index) => {
+                    html += `
+                        <div style="
+                            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                            color: white;
+                            padding: 20px 25px;
+                            border-radius: 50%;
+                            font-weight: bold;
+                            font-size: 32px;
+                            width: 80px;
+                            height: 80px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+                            border: 3px solid rgba(255, 255, 255, 0.8);
+                            transition: transform 0.3s ease;
+                        " onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">${num}</div>`;
+                });
+                
+                html += `
+                            </div>
+                            <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 10px; border-left: 4px solid #667eea;">
+                                <p style="color: #333; font-size: 14px; margin-bottom: 12px; font-weight: 600;">📊 預測詳情：</p>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 15px;">
+                                    <div style="background: white; padding: 10px; border-radius: 8px;">
+                                        <div style="font-size: 12px; color: #666;">使用策略</div>
+                                        <div style="font-size: 16px; font-weight: bold; color: #667eea;">${validationData.latestPeriodPrediction.strategy}</div>
+                                    </div>
+                                    <div style="background: white; padding: 10px; border-radius: 8px;">
+                                        <div style="font-size: 12px; color: #666;">分析期數</div>
+                                        <div style="font-size: 16px; font-weight: bold; color: #667eea;">${validationData.latestPeriodPrediction.analysis.totalPeriods} 期</div>
+                                    </div>
+                                    <div style="background: white; padding: 10px; border-radius: 8px;">
+                                        <div style="font-size: 12px; color: #666;">預測號碼數</div>
+                                        <div style="font-size: 16px; font-weight: bold; color: #667eea;">${validationData.latestPeriodPrediction.predictedNumbers.length} 個</div>
+                                    </div>
+                                </div>
+                                <p style="color: #666; font-size: 13px; margin-top: 15px; line-height: 1.6;">
+                                    <strong>預測方法說明：</strong>此預測基於迭代驗證過程，使用多種統計理論（頻率分析、加權頻率、間隔分析、模式分析、分布分析、趨勢分析、卡方檢驗、泊松分布、斐波那契分析、相關性分析、熵分析、馬可夫鏈、組合數學）進行綜合分析，並通過歷史數據驗證優化權重，最終選出最有可能在下一期被攪出的6個號碼。
+                                </p>
+                            </div>
+                            <div style="margin-top: 20px; padding: 15px; background: #e8f4f8; border-radius: 10px;">
+                                <p style="color: #333; font-size: 14px; margin-bottom: 10px; font-weight: 600;">前10名候選號碼（按綜合分數排序）：</p>
+                                <div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
+                
+                // 顯示前10名候選號碼
+                validationData.latestPeriodPrediction.topNumbers.forEach((item, index) => {
+                    const isPredicted = validationData.latestPeriodPrediction.predictedNumbers.includes(item.number);
+                    html += `
+                        <span class="number-badge" style="
+                            background: ${isPredicted ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'};
+                            color: white;
+                            padding: 10px 15px;
+                            border-radius: 25px;
+                            font-weight: 600;
+                            font-size: 15px;
+                            ${isPredicted ? 'border: 3px solid #fff; box-shadow: 0 3px 10px rgba(0,0,0,0.3); transform: scale(1.05);' : ''}
+                        ">${item.number}${isPredicted ? ' ✓' : ''} <span style="font-size: 12px; opacity: 0.95;">(${Math.round(item.score * 100) / 100})</span></span>`;
+                });
+                
+                html += `
+                                </div>
+                                <p style="color: #999; font-size: 12px; margin-top: 12px; font-style: italic;">
+                                    ✓ 標記為最終預測號碼（已選中的6個號碼）
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            }
+            
+            html += `
                 <div class="stats">
                     <h2 style="color: #667eea; margin-bottom: 15px;">🔄 迭代驗證結果</h2>
                     <p><strong>最新期數:</strong> ${validationData.latestPeriod}</p>
@@ -873,72 +964,6 @@
                     ` : ''}
                 </div>
                 
-                ${validationData.latestPeriodPrediction ? (() => {
-                    let predictionHtml = `
-                <div style="margin-top: 30px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 25px; border-radius: 15px; box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);">
-                    <h3 style="color: white; margin-bottom: 20px; font-size: 1.8em; text-align: center; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
-                        🎯 預測未來一期號碼
-                    </h3>
-                    <div style="background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 10px; margin-bottom: 15px;">
-                        <p style="color: #333; font-size: 16px; margin-bottom: 15px; text-align: center;">
-                            <strong>基於期數 ${validationData.latestPeriodPrediction.periodNumber} 預測下一期</strong>
-                        </p>
-                        <p style="color: #666; font-size: 14px; margin-bottom: 20px; text-align: center;">
-                            使用策略: <strong>${validationData.latestPeriodPrediction.strategy}</strong> | 
-                            分析期數: <strong>${validationData.latestPeriodPrediction.analysis.totalPeriods}</strong> 期
-                        </p>
-                        <div style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin: 20px 0;">`;
-                    
-                    // 顯示預測的6個號碼
-                    validationData.latestPeriodPrediction.predictedNumbers.forEach((num, index) => {
-                        predictionHtml += `
-                        <span class="number-badge" style="
-                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                            color: white;
-                            padding: 15px 20px;
-                            border-radius: 50%;
-                            font-weight: bold;
-                            font-size: 24px;
-                            width: 60px;
-                            height: 60px;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-                        ">${num}</span>`;
-                    });
-                    
-                    predictionHtml += `
-                        </div>
-                        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
-                            <p style="color: #333; font-size: 14px; margin-bottom: 10px; font-weight: 600;">前10名候選號碼：</p>
-                            <div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
-                    
-                    // 顯示前10名候選號碼
-                    validationData.latestPeriodPrediction.topNumbers.forEach((item, index) => {
-                        const isPredicted = validationData.latestPeriodPrediction.predictedNumbers.includes(item.number);
-                        predictionHtml += `
-                        <span class="number-badge" style="
-                            background: ${isPredicted ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'};
-                            color: white;
-                            padding: 8px 12px;
-                            border-radius: 20px;
-                            font-weight: 600;
-                            font-size: 14px;
-                            ${isPredicted ? 'border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.3);' : ''}
-                        ">${item.number}${isPredicted ? ' ✓' : ''} <span style="font-size: 11px; opacity: 0.9;">(${item.score})</span></span>`;
-                    });
-                    
-                    predictionHtml += `
-                            </div>
-                            <p style="color: #999; font-size: 12px; margin-top: 10px; font-style: italic;">
-                                ✓ 標記為預測號碼（已選中的6個號碼）
-                            </p>
-                        </div>
-                    </div>
-                </div>`;
-                    return predictionHtml;
-                })() : ''}
                 
                 <div style="margin-top: 30px; background: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;">
                     <h3 style="color: #333; margin-bottom: 15px;">⚙️ 最終調整後的權重</h3>
@@ -1126,7 +1151,74 @@
                 }
             }
             
-            let html = `
+            let html = '';
+            
+            // 首先顯示最終預測的6個號碼（如果有的話）
+            if (analysisData.predictedNumbers && analysisData.predictedNumbers.length > 0) {
+                html += `
+                <div style="margin-bottom: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3); position: relative; overflow: hidden;">
+                    <div style="position: absolute; top: -50px; right: -50px; width: 200px; height: 200px; background: rgba(255, 255, 255, 0.1); border-radius: 50%;"></div>
+                    <div style="position: absolute; bottom: -30px; left: -30px; width: 150px; height: 150px; background: rgba(255, 255, 255, 0.1); border-radius: 50%;"></div>
+                    <div style="position: relative; z-index: 1;">
+                        <h2 style="color: white; margin-bottom: 10px; font-size: 2.2em; text-align: center; text-shadow: 3px 3px 6px rgba(0,0,0,0.4);">
+                            🎯 最終預測未來一期號碼
+                        </h2>
+                        <p style="color: rgba(255, 255, 255, 0.95); font-size: 16px; text-align: center; margin-bottom: 25px; font-weight: 500;">
+                            基於 ${analysisData.stats.totalPeriods} 期歷史數據分析 | 預測期數: <strong>${nextPeriodStr}</strong>
+                        </p>
+                        <div style="background: rgba(255, 255, 255, 0.98); padding: 25px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);">
+                            <div style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin: 25px 0; align-items: center;">`;
+                
+                // 顯示預測的6個號碼
+                analysisData.predictedNumbers.forEach((num, index) => {
+                    html += `
+                        <div style="
+                            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                            color: white;
+                            padding: 20px 25px;
+                            border-radius: 50%;
+                            font-weight: bold;
+                            font-size: 32px;
+                            width: 80px;
+                            height: 80px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+                            border: 3px solid rgba(255, 255, 255, 0.8);
+                            transition: transform 0.3s ease;
+                        " onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">${num}</div>`;
+                });
+                
+                html += `
+                            </div>
+                            <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 10px; border-left: 4px solid #667eea;">
+                                <p style="color: #333; font-size: 14px; margin-bottom: 12px; font-weight: 600;">📊 預測詳情：</p>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 15px;">
+                                    <div style="background: white; padding: 10px; border-radius: 8px;">
+                                        <div style="font-size: 12px; color: #666;">使用策略</div>
+                                        <div style="font-size: 16px; font-weight: bold; color: #667eea;">${analysisData.predictionStrategy || 'optimal'}</div>
+                                    </div>
+                                    <div style="background: white; padding: 10px; border-radius: 8px;">
+                                        <div style="font-size: 12px; color: #666;">分析期數</div>
+                                        <div style="font-size: 16px; font-weight: bold; color: #667eea;">${analysisData.stats.totalPeriods} 期</div>
+                                    </div>
+                                    <div style="background: white; padding: 10px; border-radius: 8px;">
+                                        <div style="font-size: 12px; color: #666;">預測號碼數</div>
+                                        <div style="font-size: 16px; font-weight: bold; color: #667eea;">${analysisData.predictedNumbers.length} 個</div>
+                                    </div>
+                                </div>
+                                <p style="color: #666; font-size: 13px; margin-top: 15px; line-height: 1.6;">
+                                    <strong>預測方法說明：</strong>此預測使用多種統計理論（頻率分析、加權頻率、間隔分析、模式分析、分布分析、趨勢分析、卡方檢驗、泊松分布、斐波那契分析、相關性分析、熵分析、馬可夫鏈、組合數學）進行綜合分析，並通過智能選擇策略選出最有可能在下一期被攪出的6個號碼。
+                                    ${optimizedWeights ? '<br><br><span style="color: #28a745; font-weight: 600;">✓ 已使用迭代驗證優化後的權重參數</span>' : ''}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            }
+            
+            html += `
                 <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 20px; border-radius: 15px; margin-bottom: 20px; color: white; text-align: center; box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);">
                     <h2 style="margin: 0 0 10px 0; font-size: 1.8em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">🎯 最新預測</h2>
                     <p style="margin: 0; font-size: 1.1em; opacity: 0.95;">基於 ${analysisData.stats.totalPeriods} 期歷史數據分析</p>
@@ -1144,14 +1236,16 @@
             analysisData.topNumbers.forEach((item, index) => {
                 const rank = index + 1;
                 const size = rank <= 3 ? '35px' : rank <= 5 ? '28px' : '22px';
-                const bgColor = rank === 1 ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' :
+                const isPredicted = analysisData.predictedNumbers && analysisData.predictedNumbers.includes(item.number);
+                const bgColor = isPredicted ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' :
+                                rank === 1 ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' :
                                 rank === 2 ? 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' :
                                 rank === 3 ? 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' :
                                 rank <= 5 ? 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' :
                                 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
                 
-                const borderStyle = rank <= 3 ? '3px solid #fff' : '2px solid #fff';
-                const shadowStyle = rank <= 3 ? '0 6px 25px rgba(0, 0, 0, 0.3)' : '0 4px 15px rgba(0, 0, 0, 0.2)';
+                const borderStyle = isPredicted ? '4px solid #ffd700' : (rank <= 3 ? '3px solid #fff' : '2px solid #fff');
+                const shadowStyle = isPredicted ? '0 8px 30px rgba(0, 0, 0, 0.4)' : (rank <= 3 ? '0 6px 25px rgba(0, 0, 0, 0.3)' : '0 4px 15px rgba(0, 0, 0, 0.2)');
                 
                 html += `
                     <div class="prediction-card" style="
@@ -1169,8 +1263,9 @@
                         position: relative;
                     " onmouseover="this.style.transform='scale(1.1)'; this.style.zIndex='10';" 
                        onmouseout="this.style.transform='scale(1)'; this.style.zIndex='1';">
-                        ${rank <= 3 ? `<div style="position: absolute; top: -10px; right: -10px; background: #ffd700; color: #333; width: 35px; height: 35px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">${rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉'}</div>` : ''}
-                        <div style="font-size: 11px; opacity: 0.9; margin-bottom: 8px; font-weight: 600;">排名 #${rank}</div>
+                        ${isPredicted ? `<div style="position: absolute; top: -10px; right: -10px; background: #ffd700; color: #333; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; box-shadow: 0 3px 10px rgba(0,0,0,0.4);">✓</div>` : ''}
+                        ${!isPredicted && rank <= 3 ? `<div style="position: absolute; top: -10px; right: -10px; background: #ffd700; color: #333; width: 35px; height: 35px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">${rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉'}</div>` : ''}
+                        <div style="font-size: 11px; opacity: 0.9; margin-bottom: 8px; font-weight: 600;">排名 #${rank}${isPredicted ? ' (已選中)' : ''}</div>
                         <div style="font-size: ${size}; font-weight: bold; margin: 15px 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">${String(item.number).padStart(2, '0')}</div>
                         <div style="font-size: 12px; opacity: 0.85; margin-top: 5px;">分數: ${item.score}</div>
                     </div>

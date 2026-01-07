@@ -245,11 +245,35 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
     // 如果生成失敗，不影響主要分析結果
   }
   
+  // 選擇最終的6個預測號碼（使用智能選擇策略）
+  let predictedNumbers = null;
+  let predictionStrategy = 'optimal';
+  try {
+    predictedNumbers = selectOptimalNumbers(topNumbers, 6, null);
+    if (predictedNumbers && predictedNumbers.length > 0) {
+      // 確定使用的策略
+      const top6 = topNumbers.slice(0, 6).map(n => n.number).sort((a, b) => a - b);
+      const predNums = predictedNumbers.map(n => n.number || n).sort((a, b) => a - b);
+      if (JSON.stringify(predNums) === JSON.stringify(top6)) {
+        predictionStrategy = 'top6';
+      } else {
+        predictionStrategy = 'optimal';
+      }
+    }
+  } catch (error) {
+    console.warn('選擇最終預測號碼失敗:', error.message);
+    // 如果選擇失敗，使用前6個最高分作為備選
+    predictedNumbers = topNumbers.slice(0, 6);
+    predictionStrategy = 'top6';
+  }
+  
   return {
     topNumbers,
     stats,
     compoundBetSuggestions, // 複式投注建議（多個選項）
     compoundBetSuggestion100, // $100 複式投注建議
+    predictedNumbers: predictedNumbers ? predictedNumbers.map(n => n.number || n).sort((a, b) => a - b) : null, // 最終預測的6個號碼
+    predictionStrategy: predictionStrategy, // 使用的選擇策略
     analysisDetails: {
       frequency,
       weightedFrequency,
