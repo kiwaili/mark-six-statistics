@@ -126,9 +126,9 @@ function iterativeSimulationOptimization(
   }
   
   // 確保預測號碼是數字陣列
-  currentPredictedNumbers = currentPredictedNumbers.map(n => 
+  currentPredictedNumbers = [...new Set(currentPredictedNumbers.map(n => 
     typeof n === 'object' ? n.number : parseInt(n, 10)
-  ).filter(n => !isNaN(n) && n >= 1 && n <= 49);
+  ))].filter(n => !isNaN(n) && n >= 1 && n <= 49);
   
   if (currentPredictedNumbers.length !== 6) {
     throw new Error('預測號碼必須是6個有效的號碼（1-49）');
@@ -295,7 +295,7 @@ function iterativeSimulationOptimization(
   
   return {
     initialPredictedNumbers: initialPredictedNumbers || 'auto-generated',
-    finalPredictedNumbers: currentPredictedNumbers.sort((a, b) => a - b),
+    finalPredictedNumbers: [...currentPredictedNumbers].sort((a, b) => a - b),
     iterations: iteration,
     converged,
     finalHitStatistics: {
@@ -316,13 +316,12 @@ function iterativeSimulationOptimization(
 
 /**
  * 批量模擬測試（用於評估預測方法的有效性）
- * @param {Array} historicalResults - 歷史開獎結果
  * @param {Array<number>} predictedNumbers - 預測號碼
  * @param {number} rounds - 模擬輪數（預設1000）
  * @param {number} batchSize - 每批模擬次數（預設100）
  * @returns {Object} 批量模擬結果
  */
-function batchSimulationTest(historicalResults, predictedNumbers, rounds = 1000, batchSize = 100) {
+function batchSimulationTest(predictedNumbers, rounds = 1000, batchSize = 100) {
   if (!predictedNumbers || predictedNumbers.length !== 6) {
     throw new Error('需要6個預測號碼');
   }
@@ -352,7 +351,7 @@ function batchSimulationTest(historicalResults, predictedNumbers, rounds = 1000,
   const overallHitRate = totalRounds > 0 ? totalHits / (predictedNumbers.length * totalRounds) : 0;
   
   return {
-    predictedNumbers: predictedNumbers.sort((a, b) => a - b),
+    predictedNumbers: [...predictedNumbers].sort((a, b) => a - b),
     totalRounds,
     overallHitRate,
     averageHitsPerDraw: totalRounds > 0 ? totalHits / totalRounds : 0,
