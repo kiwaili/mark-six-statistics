@@ -385,11 +385,27 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
   };
 }
 
-// 設置 analyzeNumbers 到 validation 模組（解決循環依賴）
-setAnalyzeNumbers(analyzeNumbers);
+// 延遲設置 analyzeNumbers 到 validation 模組（解決循環依賴）
+// 使用 setImmediate 或 setTimeout 確保在模組加載完成後再設置
+if (typeof setImmediate !== 'undefined') {
+  setImmediate(() => {
+    setAnalyzeNumbers(analyzeNumbers);
+  });
+} else if (typeof process !== 'undefined' && process.nextTick) {
+  process.nextTick(() => {
+    setAnalyzeNumbers(analyzeNumbers);
+  });
+} else {
+  // 如果都沒有，使用 setTimeout 延遲設置
+  setTimeout(() => {
+    setAnalyzeNumbers(analyzeNumbers);
+  }, 0);
+}
 
 // 包裝 iterativeValidation 以確保 analyzeNumbers 已設置
 const wrappedIterativeValidation = function(allResults, lookbackPeriods = 100) {
+  // 確保 analyzeNumbers 已設置（如果延遲設置還沒執行，立即設置）
+  setAnalyzeNumbers(analyzeNumbers);
   return iterativeValidation(allResults, lookbackPeriods);
 };
 
