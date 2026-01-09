@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const lotteryService = require('../services/lotteryService');
 const analysisService = require('../services/analysisService');
+const simulationService = require('../services/simulation');
 
 /**
  * 取得攪珠結果
@@ -92,6 +93,112 @@ router.post('/validate', async (req, res) => {
     res.status(500).json({
       success: false,
       message: '迭代驗證失敗',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * 迭代模擬優化預測號碼
+ * POST /api/lottery/simulate
+ * Body: { 
+ *   results: [...], 
+ *   predictedNumbers: [1,2,3,4,5,6] (可選),
+ *   options: {
+ *     simulationRounds: 1000,
+ *     maxIterations: 10,
+ *     hitThreshold: 0.1,
+ *     minKeepCount: 2,
+ *     weights: {}
+ *   }
+ * }
+ */
+router.post('/simulate', async (req, res) => {
+  try {
+    const results = req.body.results;
+    const predictedNumbers = req.body.predictedNumbers;
+    const options = req.body.options || {};
+    
+    if (!results || !Array.isArray(results) || results.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: '請提供有效的攪珠結果資料'
+      });
+    }
+    
+    // 使用 Promise.resolve 包装同步函数调用
+    const simulationResult = await Promise.resolve(
+      simulationService.iterativeSimulationOptimization(
+        results,
+        predictedNumbers,
+        options
+      )
+    );
+    
+    res.json({
+      success: true,
+      data: simulationResult
+    });
+  } catch (error) {
+    console.error('模擬優化失敗:', error);
+    res.status(500).json({
+      success: false,
+      message: '模擬優化失敗',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * 批量模擬測試
+ * POST /api/lottery/simulate/batch
+ * Body: { 
+ *   results: [...], 
+ *   predictedNumbers: [1,2,3,4,5,6],
+ *   rounds: 1000,
+ *   batchSize: 100
+ * }
+ */
+router.post('/simulate/batch', async (req, res) => {
+  try {
+    const results = req.body.results;
+    const predictedNumbers = req.body.predictedNumbers;
+    const rounds = req.body.rounds || 1000;
+    const batchSize = req.body.batchSize || 100;
+    
+    if (!results || !Array.isArray(results) || results.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: '請提供有效的攪珠結果資料'
+      });
+    }
+    
+    if (!predictedNumbers || !Array.isArray(predictedNumbers) || predictedNumbers.length !== 6) {
+      return res.status(400).json({
+        success: false,
+        message: '請提供6個預測號碼'
+      });
+    }
+    
+    // 使用 Promise.resolve 包装同步函数调用
+    const batchResult = await Promise.resolve(
+      simulationService.batchSimulationTest(
+        results,
+        predictedNumbers,
+        rounds,
+        batchSize
+      )
+    );
+    
+    res.json({
+      success: true,
+      data: batchResult
+    });
+  } catch (error) {
+    console.error('批量模擬測試失敗:', error);
+    res.status(500).json({
+      success: false,
+      message: '批量模擬測試失敗',
       error: error.message
     });
   }
