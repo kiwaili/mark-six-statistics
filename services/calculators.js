@@ -1386,36 +1386,41 @@ function calculateNumberRangeScore(allNumbers, excludePeriodNumbers = null, filt
   
   // 找出得分最高的範圍（可能有多個）
   const maxScore = Math.max(...Object.values(rangeScores));
-  if (!(maxScore > 0)) {
-    // Defensive: avoid division by 0/NaN if inputs are unexpected
-    return { scores: rangeScore, rangeHits, rangeStatistics: {} };
-  }
-  const topRanges = ranges.filter(range => {
-    // 如果得分接近最高分（差距在10%以內），也視為高機率範圍
-    return rangeScores[range.id] >= maxScore * 0.9;
-  });
+  
+  // 如果 maxScore <= 0，topRanges 為空數組，否則找出高機率範圍
+  const topRanges = maxScore > 0 
+    ? ranges.filter(range => {
+        // 如果得分接近最高分（差距在10%以內），也視為高機率範圍
+        return rangeScores[range.id] >= maxScore * 0.9;
+      })
+    : [];
   
   // 計算每個號碼的分數
   // 如果號碼屬於高機率範圍，給予高分
   for (let num = 1; num <= 49; num++) {
     for (const range of ranges) {
       if (num >= range.min && num <= range.max) {
-        // 如果該範圍是高機率範圍
-        if (topRanges.some(r => r.id === range.id)) {
-          // 根據該範圍的得分給予分數
-          const rangeScoreValue = rangeScores[range.id];
-          // 正規化到0-100範圍
-          rangeScore[num] = Math.min(100, (rangeScoreValue / maxScore) * 100);
+        if (maxScore > 0) {
+          // 如果該範圍是高機率範圍
+          if (topRanges.some(r => r.id === range.id)) {
+            // 根據該範圍的得分給予分數
+            const rangeScoreValue = rangeScores[range.id];
+            // 正規化到0-100範圍
+            rangeScore[num] = Math.min(100, (rangeScoreValue / maxScore) * 100);
+          } else {
+            // 非高機率範圍，給予較低分數
+            rangeScore[num] = Math.max(0, (rangeScores[range.id] / maxScore) * 50);
+          }
         } else {
-          // 非高機率範圍，給予較低分數
-          rangeScore[num] = Math.max(0, (rangeScores[range.id] / maxScore) * 50);
+          // maxScore <= 0，無法正規化，設置為0
+          rangeScore[num] = 0;
         }
         break;
       }
     }
   }
   
-  // 計算範圍統計信息
+  // 計算範圍統計信息（始終填充，確保一致的響應形狀）
   const rangeStatistics = {};
   ranges.forEach(range => {
     rangeStatistics[range.id] = {
