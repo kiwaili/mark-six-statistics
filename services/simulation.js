@@ -3,8 +3,6 @@
  * 使用預測號碼模擬多次攪出，根據命中率迭代優化預測號碼
  */
 
-const { selectOptimalNumbers } = require('./selectionStrategies');
-
 // 延遲加載 analyzeNumbers 以避免循環依賴
 let analyzeNumbers = null;
 function getAnalyzeNumbers() {
