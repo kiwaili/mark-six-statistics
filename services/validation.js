@@ -6,6 +6,7 @@
 // 導入依賴
 const { extractAllNumbers, isNextPeriod } = require('./utils');
 const { selectOptimalNumbers, generateMultipleCandidates } = require('./selectionStrategies');
+const { calculateHitStatistics, simulateSingleDraw } = require('./simulation');
 
 // analyzeNumbers 需要從主服務導入（暫時，稍後會重構）
 // 注意：這會創建循環依賴，需要重構 analyzeNumbers 到獨立模組
@@ -547,9 +548,10 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
  * 迭代驗證分析：從最新期數往前推10期開始，逐步驗證並調整
  * @param {Array} allResults - 所有攪珠結果（已按日期排序，最新的在前）
  * @param {number} lookbackPeriods - 往前推的期數（預設100）
+ * @param {number} maxRetries - 最大重試次數（如果平均命中數未達標，預設50次）
  * @returns {Object} 驗證結果
  */
-function iterativeValidation(allResults, lookbackPeriods = 100) {
+function iterativeValidation(allResults, lookbackPeriods = 100, maxRetries = 50) {
   if (!analyzeNumbers) {
     throw new Error('analyzeNumbers 函數未設置。請先調用 setAnalyzeNumbers()');
   }
@@ -576,9 +578,29 @@ function iterativeValidation(allResults, lookbackPeriods = 100) {
     throw new Error(`無法找到往前推 ${lookbackPeriods} 期的資料`);
   }
   
-  let validationResults = [];
+  // 定義目標值
+  const targetAverageHitCount = 3; // 目標平均每期命中數至少3
   
-  // 使用多組初始權重進行測試，選擇最佳的一組
+  let validationResults = [];
+  let retryCount = 0;
+  let bestValidationResult = null;
+  let bestAverageHitCount = 0;
+  let allRetryResults = [];
+  
+  // 在循環外部聲明變量，以便在循環外部使用
+  let totalValidations = 0;
+  let totalHits = 0;
+  let averageAccuracy = 0;
+  let averageCoverage = 0;
+  let periodsWithAtLeast3Hits = 0;
+  let hitRateAtLeast3 = 0;
+  let hitCountDistribution = {};
+  let averageHitCount = 0;
+  let meetsHitCountTarget = false;
+  let meetsAccuracyTarget = false;
+  let meetsAllTargets = false;
+  let currentWeights = null;
+  
   // 優化目標：提高準確率至50%，更重視趨勢、分布和間隔分析
   // 目標：平均每期命中數至少3，準確率至少50%
   // 包含所有13種統計方法的權重配置
@@ -601,116 +623,142 @@ function iterativeValidation(allResults, lookbackPeriods = 100) {
     { frequency: 0.07, weightedFrequency: 0.09, gap: 0.10, pattern: 0.05, distribution: 0.09, trend: 0.08, chiSquare: 0.02, poisson: 0.02, fibonacci: 0.07, correlation: 0.12, entropy: 0.08, markov: 0.12, combinatorial: 0.09 }
   ];
   
-  // 測試每組初始權重，選擇表現最好的
+  // 測試每組初始權重，選擇表現最好的（只在第一次運行時執行）
   let bestWeights = initialWeightSets[0];
-  let bestAverageAccuracy = 0;
-  let bestAverageHitCount = 0;
+  let bestAverageAccuracyForWeights = 0;
+  let bestAverageHitCountForWeights = 0;
   
-  // 增加測試期數以提高選擇準確性（使用前100期數據）
-  const testPeriods = Math.min(100, startIndex);
-  for (const testWeights of initialWeightSets) {
-    let testAccuracy = 0;
-    let totalHitCount = 0;
-    let testCount = 0;
-    
-    for (let i = startIndex; i > startIndex - testPeriods && i > 0; i--) {
-      const trainingData = allResults.slice(i);
-      const targetResult = allResults[i - 1];
+  // 只在第一次運行時測試權重
+  if (retryCount === 0) {
+    // 增加測試期數以提高選擇準確性（使用前100期數據）
+    const testPeriods = Math.min(100, startIndex);
+    for (const testWeights of initialWeightSets) {
+      let testAccuracy = 0;
+      let totalHitCount = 0;
+      let testCount = 0;
       
-      if (!isNextPeriod(trainingData[0].periodNumber, targetResult.periodNumber)) {
-        continue;
-      }
-      
-      try {
-        // 計算需要排除的期數：目標期之後的所有期數（更近期的期數）
-        const excludePeriodNumbers = new Set();
-        for (let j = 0; j < i - 1; j++) {
-          excludePeriodNumbers.add(allResults[j].periodNumber);
+      for (let i = startIndex; i > startIndex - testPeriods && i > 0; i--) {
+        const trainingData = allResults.slice(i);
+        const targetResult = allResults[i - 1];
+        
+        if (!isNextPeriod(trainingData[0].periodNumber, targetResult.periodNumber)) {
+          continue;
         }
         
-        const analysis = analyzeNumbers(trainingData, testWeights, excludePeriodNumbers);
-        const actualNumbers = extractAllNumbers([targetResult])[0]?.numbers || [];
-        
-        if (actualNumbers.length === 0) continue;
-        
-        // 在迭代驗證中，每次預測只使用6個號碼
-        // 使用智能選擇策略選擇最優的6個號碼
-        // 在測試階段，不使用歷史數據（因為還沒有歷史）
-        const predictedNumbers = selectOptimalNumbers(analysis.topNumbers, 6, null);
-        const comparison = comparePrediction(predictedNumbers, actualNumbers);
-        testAccuracy += comparison.accuracy;
-        totalHitCount += comparison.hitCount;
-        testCount++;
-      } catch (error) {
-        console.error(`測試權重時發生錯誤 (期數 ${targetResult?.periodNumber || 'unknown'}):`, error.message);
-        continue;
+        try {
+          // 計算需要排除的期數：目標期之後的所有期數（更近期的期數）
+          const excludePeriodNumbers = new Set();
+          for (let j = 0; j < i - 1; j++) {
+            excludePeriodNumbers.add(allResults[j].periodNumber);
+          }
+          
+          const analysis = analyzeNumbers(trainingData, testWeights, excludePeriodNumbers);
+          const actualNumbers = extractAllNumbers([targetResult])[0]?.numbers || [];
+          
+          if (actualNumbers.length === 0) continue;
+          
+          // 在迭代驗證中，每次預測只使用6個號碼
+          // 使用智能選擇策略選擇最優的6個號碼
+          // 在測試階段，不使用歷史數據（因為還沒有歷史）
+          const predictedNumbers = selectOptimalNumbers(analysis.topNumbers, 6, null);
+          const comparison = comparePrediction(predictedNumbers, actualNumbers);
+          testAccuracy += comparison.accuracy;
+          totalHitCount += comparison.hitCount;
+          testCount++;
+        } catch (error) {
+          console.error(`測試權重時發生錯誤 (期數 ${targetResult?.periodNumber || 'unknown'}):`, error.message);
+          continue;
+        }
       }
-    }
-    
-    if (testCount > 0) {
-      const avgAccuracy = testAccuracy / testCount;
-      const avgHitCount = totalHitCount / testCount;
       
-      // 優化目標：同時確保平均命中數 >= 3 和平均準確率 >= 50%
-      const targetAvgHitCount = 3;
-      const targetAvgAccuracy = 50;
-      
-      const currentMeetsAllTargets = avgHitCount >= targetAvgHitCount && avgAccuracy >= targetAvgAccuracy;
-      const bestMeetsAllTargets = bestAverageHitCount >= targetAvgHitCount && bestAverageAccuracy >= targetAvgAccuracy;
-      
-      // 優先選擇同時達到兩個目標的權重
-      if (currentMeetsAllTargets) {
-        if (bestMeetsAllTargets) {
-          // 兩者都達到目標，選擇綜合表現更好的（加權分數）
-          // 綜合分數 = 準確率 * 0.6 + 命中數 * 0.4（準確率稍重要）
-          const currentScore = avgAccuracy * 0.6 + avgHitCount * 10 * 0.4; // 命中數乘以10以平衡量級
-          const bestScore = bestAverageAccuracy * 0.6 + bestAverageHitCount * 10 * 0.4;
-          if (currentScore > bestScore || 
-              (currentScore === bestScore && avgAccuracy > bestAverageAccuracy)) {
-            bestAverageAccuracy = avgAccuracy;
-            bestAverageHitCount = avgHitCount;
+      if (testCount > 0) {
+        const avgAccuracy = testAccuracy / testCount;
+        const avgHitCount = totalHitCount / testCount;
+        
+        // 優化目標：同時確保平均命中數 >= 3 和平均準確率 >= 50%
+        const targetAvgHitCount = 3;
+        const targetAvgAccuracy = 50;
+        
+        const currentMeetsAllTargets = avgHitCount >= targetAvgHitCount && avgAccuracy >= targetAvgAccuracy;
+        const bestMeetsAllTargets = bestAverageHitCountForWeights >= targetAvgHitCount && bestAverageAccuracyForWeights >= targetAvgAccuracy;
+        
+        // 優先選擇同時達到兩個目標的權重
+        if (currentMeetsAllTargets) {
+          if (bestMeetsAllTargets) {
+            // 兩者都達到目標，選擇綜合表現更好的（加權分數）
+            // 綜合分數 = 準確率 * 0.6 + 命中數 * 0.4（準確率稍重要）
+            const currentScore = avgAccuracy * 0.6 + avgHitCount * 10 * 0.4; // 命中數乘以10以平衡量級
+            const bestScore = bestAverageAccuracyForWeights * 0.6 + bestAverageHitCountForWeights * 10 * 0.4;
+            if (currentScore > bestScore || 
+                (currentScore === bestScore && avgAccuracy > bestAverageAccuracyForWeights)) {
+              bestAverageAccuracyForWeights = avgAccuracy;
+              bestAverageHitCountForWeights = avgHitCount;
+              bestWeights = testWeights;
+            }
+          } else {
+            // 當前達到所有目標，最佳未達到，選擇當前
+            bestAverageAccuracyForWeights = avgAccuracy;
+            bestAverageHitCountForWeights = avgHitCount;
             bestWeights = testWeights;
           }
+        } else if (bestMeetsAllTargets) {
+          // 最佳達到所有目標，當前未達到，保持最佳
+          // 不更新
         } else {
-          // 當前達到所有目標，最佳未達到，選擇當前
-          bestAverageAccuracy = avgAccuracy;
-          bestAverageHitCount = avgHitCount;
-          bestWeights = testWeights;
-        }
-      } else if (bestMeetsAllTargets) {
-        // 最佳達到所有目標，當前未達到，保持最佳
-        // 不更新
-      } else {
-        // 兩者都未達到所有目標，選擇更接近目標的
-        // 計算距離目標的加權距離（越小越好）
-        const currentDistance = Math.max(0, targetAvgHitCount - avgHitCount) * 10 + 
-                                Math.max(0, targetAvgAccuracy - avgAccuracy);
-        const bestDistance = Math.max(0, targetAvgHitCount - bestAverageHitCount) * 10 + 
-                             Math.max(0, targetAvgAccuracy - bestAverageAccuracy);
-        
-        if (currentDistance < bestDistance || 
-            (currentDistance === bestDistance && avgAccuracy > bestAverageAccuracy)) {
-          bestAverageAccuracy = avgAccuracy;
-          bestAverageHitCount = avgHitCount;
-          bestWeights = testWeights;
+          // 兩者都未達到所有目標，選擇更接近目標的
+          // 計算距離目標的加權距離（越小越好）
+          const currentDistance = Math.max(0, targetAvgHitCount - avgHitCount) * 10 + 
+                                  Math.max(0, targetAvgAccuracy - avgAccuracy);
+          const bestDistance = Math.max(0, targetAvgHitCount - bestAverageHitCountForWeights) * 10 + 
+                               Math.max(0, targetAvgAccuracy - bestAverageAccuracyForWeights);
+          
+          if (currentDistance < bestDistance || 
+              (currentDistance === bestDistance && avgAccuracy > bestAverageAccuracyForWeights)) {
+            bestAverageAccuracyForWeights = avgAccuracy;
+            bestAverageHitCountForWeights = avgHitCount;
+            bestWeights = testWeights;
+          }
         }
       }
     }
   }
   
-  let currentWeights = { ...bestWeights };
+  // 如果沒有找到最佳權重，使用第一個
+  if (!bestWeights) {
+    bestWeights = initialWeightSets[0];
+  }
   
-  // 從 startIndex 開始，逐步向前驗證
-  for (let i = startIndex; i > 0; i--) {
-    const trainingData = allResults.slice(i); // 從當前期數往前的所有資料
-    const targetResult = allResults[i - 1]; // 要預測的下一期
+  // 重試循環：如果平均命中數未達標，重新運算
+  while (retryCount <= maxRetries) {
+    validationResults = [];
     
-    // 檢查是否為連續期數
-    if (!isNextPeriod(trainingData[0].periodNumber, targetResult.periodNumber)) {
-      continue; // 跳過不連續的期數
+    let currentWeights = { ...bestWeights };
+    
+    // 如果是重試，調整權重
+    if (retryCount > 0) {
+      // 稍微調整權重以嘗試不同的組合
+      const adjustment = 0.05 * retryCount;
+      Object.keys(currentWeights).forEach(key => {
+        currentWeights[key] = Math.max(0.01, Math.min(0.5, currentWeights[key] + (Math.random() - 0.5) * adjustment));
+      });
+      // 正規化權重
+      const totalWeight = Object.values(currentWeights).reduce((sum, w) => sum + w, 0);
+      Object.keys(currentWeights).forEach(key => {
+        currentWeights[key] = currentWeights[key] / totalWeight;
+      });
     }
     
-    try {
+    // 從 startIndex 開始，逐步向前驗證
+    for (let i = startIndex; i > 0; i--) {
+      const trainingData = allResults.slice(i); // 從當前期數往前的所有資料
+      const targetResult = allResults[i - 1]; // 要預測的下一期
+      
+      // 檢查是否為連續期數
+      if (!isNextPeriod(trainingData[0].periodNumber, targetResult.periodNumber)) {
+        continue; // 跳過不連續的期數
+      }
+      
+      try {
       // 計算需要排除的期數：目標期之後的所有期數（更近期的期數）
       // 即從索引 0 到 i-2 的所有期數
       const excludePeriodNumbers = new Set();
@@ -776,21 +824,69 @@ function iterativeValidation(allResults, lookbackPeriods = 100) {
         continue;
       }
       
-      // 回測：測試每個候選組合的實際命中數
+      // 回測：使用模擬測試每個候選組合，然後選擇實際命中數最多的
+      // 首先使用模擬評估候選組合的潛在表現
+      const simulationRounds = 1000; // 每個候選組合模擬1000次
+      const simulatedDraws = [];
+      for (let s = 0; s < simulationRounds; s++) {
+        simulatedDraws.push(simulateSingleDraw(1, 49, 6));
+      }
+      
+      // 對每個候選組合進行模擬評估
+      const candidateScores = [];
+      candidateCombinations.forEach(candidate => {
+        if (candidate && candidate.numbers && candidate.numbers.length > 0) {
+          const candidateNumbers = candidate.numbers.map(n => typeof n === 'object' ? n.number : n);
+          const simulationStats = calculateHitStatistics(candidateNumbers, simulatedDraws);
+          
+          // 計算模擬分數：平均命中數 + 命中率
+          const simulationScore = simulationStats.averageHitsPerDraw + simulationStats.hitRate * 10;
+          
+          candidateScores.push({
+            candidate: candidate,
+            numbers: candidateNumbers,
+            strategy: candidate.strategy,
+            simulationScore: simulationScore,
+            simulationStats: simulationStats
+          });
+        }
+      });
+      
+      // 按模擬分數排序，選擇前3個進行實際測試
+      candidateScores.sort((a, b) => b.simulationScore - a.simulationScore);
+      const topCandidates = candidateScores.slice(0, Math.min(3, candidateScores.length));
+      
+      // 在實際結果上測試這些候選組合
       let bestCombination = candidateCombinations[0];
       let bestHitCount = -1;
       let bestStrategy = 'top6';
+      let bestSimulationScore = -1;
       
-      candidateCombinations.forEach(candidate => {
-        if (candidate && candidate.numbers && candidate.numbers.length > 0) {
-          const testComparison = comparePrediction(candidate.numbers, actualNumbers);
-          if (testComparison.hitCount > bestHitCount) {
-            bestHitCount = testComparison.hitCount;
-            bestCombination = candidate.numbers;
-            bestStrategy = candidate.strategy;
-          }
+      // 先測試模擬分數最高的候選組合
+      topCandidates.forEach(candidateScore => {
+        const testComparison = comparePrediction(candidateScore.numbers, actualNumbers);
+        if (testComparison.hitCount > bestHitCount || 
+            (testComparison.hitCount === bestHitCount && candidateScore.simulationScore > bestSimulationScore)) {
+          bestHitCount = testComparison.hitCount;
+          bestCombination = candidateScore.numbers;
+          bestStrategy = candidateScore.strategy;
+          bestSimulationScore = candidateScore.simulationScore;
         }
       });
+      
+      // 如果沒有找到，測試所有候選組合
+      if (bestHitCount === -1) {
+        candidateCombinations.forEach(candidate => {
+          if (candidate && candidate.numbers && candidate.numbers.length > 0) {
+            const testComparison = comparePrediction(candidate.numbers, actualNumbers);
+            if (testComparison.hitCount > bestHitCount) {
+              bestHitCount = testComparison.hitCount;
+              bestCombination = candidate.numbers;
+              bestStrategy = candidate.strategy;
+            }
+          }
+        });
+      }
       
       // 確保有有效的組合
       if (!bestCombination || bestCombination.length === 0) {
@@ -813,12 +909,26 @@ function iterativeValidation(allResults, lookbackPeriods = 100) {
       // 使用回測選擇的策略
       const usedStrategy = bestStrategy;
       
+      // 對最終選擇的預測號碼進行模擬評估（用於記錄）
+      const finalSimulatedDraws = [];
+      for (let s = 0; s < 1000; s++) {
+        finalSimulatedDraws.push(simulateSingleDraw(1, 49, 6));
+      }
+      const finalPredictedNumbersArray = predictedNumbers.map(n => typeof n === 'object' ? n.number : n);
+      const finalSimulationStats = calculateHitStatistics(finalPredictedNumbersArray, finalSimulatedDraws);
+      
       validationResults.push({
         trainingPeriod: trainingData[0].periodNumber,
         targetPeriod: targetResult.periodNumber,
-        predictedNumbers: predictedNumbers.map(n => n.number),
+        predictedNumbers: finalPredictedNumbersArray,
         actualNumbers: actualNumbers,
         strategy: usedStrategy, // 記錄使用的策略
+        simulation: {
+          averageHitsPerDraw: finalSimulationStats.averageHitsPerDraw,
+          hitRate: finalSimulationStats.hitRate,
+          totalHits: finalSimulationStats.totalHits,
+          numberHits: finalSimulationStats.numberHits
+        },
         comparison: {
           ...comparison,
           // 明確標記是否達到目標（至少3個命中數）
@@ -847,52 +957,141 @@ function iterativeValidation(allResults, lookbackPeriods = 100) {
         actualNumbers
       );
       
-    } catch (error) {
-      console.error(`驗證期數 ${targetResult?.periodNumber || 'unknown'} 時發生錯誤:`, error);
-      console.error('錯誤詳情:', error.stack);
+      } catch (error) {
+        console.error(`驗證期數 ${targetResult?.periodNumber || 'unknown'} 時發生錯誤:`, error);
+        console.error('錯誤詳情:', error.stack);
+        continue;
+      }
+    }
+    
+    // 計算總體統計（在重試循環內部）
+    totalValidations = validationResults.length;
+    totalHits = validationResults.reduce((sum, r) => sum + r.comparison.hitCount, 0);
+    averageAccuracy = totalValidations > 0 
+      ? validationResults.reduce((sum, r) => sum + r.comparison.accuracy, 0) / totalValidations 
+      : 0;
+    averageCoverage = totalValidations > 0
+      ? validationResults.reduce((sum, r) => sum + r.comparison.coverage, 0) / totalValidations
+      : 0;
+    
+    // 計算命中數至少3的統計
+    periodsWithAtLeast3Hits = validationResults.filter(r => r.comparison.meetsTarget).length;
+    hitRateAtLeast3 = totalValidations > 0 
+      ? Math.round((periodsWithAtLeast3Hits / totalValidations) * 10000) / 100 
+      : 0;
+    
+    // 計算命中數分布
+    hitCountDistribution = {};
+    validationResults.forEach(r => {
+      const hitCount = r.comparison.hitCount;
+      hitCountDistribution[hitCount] = (hitCountDistribution[hitCount] || 0) + 1;
+    });
+    
+    // 計算平均命中數
+    averageHitCount = totalValidations > 0 
+      ? Math.round((totalHits / totalValidations) * 100) / 100 
+      : 0;
+    
+    // 定義目標值
+    const targetAverageAccuracy = 50; // 目標平均準確率至少50%
+    
+    // 計算目標達成狀態
+    meetsHitCountTarget = averageHitCount >= targetAverageHitCount;
+    meetsAccuracyTarget = averageAccuracy >= targetAverageAccuracy;
+    meetsAllTargets = meetsHitCountTarget && meetsAccuracyTarget;
+    
+    // 記錄本次重試的結果
+    const retryResult = {
+      retryCount: retryCount,
+      averageHitCount: averageHitCount,
+      averageAccuracy: averageAccuracy,
+      meetsHitCountTarget: meetsHitCountTarget,
+      meetsAccuracyTarget: meetsAccuracyTarget,
+      meetsAllTargets: meetsAllTargets,
+      validationResults: validationResults,
+      finalWeights: currentWeights
+    };
+    allRetryResults.push(retryResult);
+    
+    // 計算距離目標的距離（越小越好，負數表示超過目標）
+    const distanceFromTarget = Math.abs(averageHitCount - targetAverageHitCount);
+    const bestDistanceFromTarget = bestValidationResult 
+      ? Math.abs(bestValidationResult.averageHitCount - targetAverageHitCount)
+      : Infinity;
+    
+    // 如果達到目標，保存結果並退出循環
+    if (meetsHitCountTarget) {
+      bestValidationResult = retryResult;
+      bestAverageHitCount = averageHitCount;
+      break;
+    }
+    
+    // 選擇最接近目標的結果（距離目標最近）
+    // 優先選擇達到目標的，如果都未達標，選擇最接近的
+    if (!bestValidationResult || distanceFromTarget < bestDistanceFromTarget) {
+      bestValidationResult = retryResult;
+      bestAverageHitCount = averageHitCount;
+    } else if (distanceFromTarget === bestDistanceFromTarget && averageHitCount > bestAverageHitCount) {
+      // 如果距離相同，選擇平均命中數更高的
+      bestValidationResult = retryResult;
+      bestAverageHitCount = averageHitCount;
+    }
+    
+    // 如果未達標且還有重試機會，繼續重試
+    if (retryCount < maxRetries && !meetsHitCountTarget) {
+      retryCount++;
+      console.log(`平均命中數 ${averageHitCount.toFixed(2)} 未達標（目標：${targetAverageHitCount}），進行第 ${retryCount} 次重試...`);
       continue;
+    } else {
+      // 達到最大重試次數或已達標，退出循環
+      break;
     }
   }
   
-  // 計算總體統計
-  let totalValidations = validationResults.length;
-  let totalHits = validationResults.reduce((sum, r) => sum + r.comparison.hitCount, 0);
-  let averageAccuracy = totalValidations > 0 
+  // 使用最佳結果
+  if (bestValidationResult) {
+    validationResults = bestValidationResult.validationResults;
+    currentWeights = bestValidationResult.finalWeights;
+    averageHitCount = bestValidationResult.averageHitCount;
+    averageAccuracy = bestValidationResult.averageAccuracy;
+    meetsHitCountTarget = bestValidationResult.meetsHitCountTarget;
+    meetsAccuracyTarget = bestValidationResult.meetsAccuracyTarget;
+    meetsAllTargets = bestValidationResult.meetsAllTargets;
+  }
+  
+  // 重新計算統計（使用最佳結果）
+  totalValidations = validationResults.length;
+  totalHits = validationResults.reduce((sum, r) => sum + r.comparison.hitCount, 0);
+  averageAccuracy = totalValidations > 0 
     ? validationResults.reduce((sum, r) => sum + r.comparison.accuracy, 0) / totalValidations 
     : 0;
-  let averageCoverage = totalValidations > 0
+  averageCoverage = totalValidations > 0
     ? validationResults.reduce((sum, r) => sum + r.comparison.coverage, 0) / totalValidations
     : 0;
   
   // 計算命中數至少3的統計
-  let periodsWithAtLeast3Hits = validationResults.filter(r => r.comparison.meetsTarget).length;
-  let hitRateAtLeast3 = totalValidations > 0 
+  periodsWithAtLeast3Hits = validationResults.filter(r => r.comparison.meetsTarget).length;
+  hitRateAtLeast3 = totalValidations > 0 
     ? Math.round((periodsWithAtLeast3Hits / totalValidations) * 10000) / 100 
     : 0;
   
   // 計算命中數分布
-  let hitCountDistribution = {};
+  hitCountDistribution = {};
   validationResults.forEach(r => {
     const hitCount = r.comparison.hitCount;
     hitCountDistribution[hitCount] = (hitCountDistribution[hitCount] || 0) + 1;
   });
   
-  // 計算平均命中數
-  let averageHitCount = totalValidations > 0 
+  // 計算平均命中數（使用最佳結果）
+  averageHitCount = totalValidations > 0 
     ? Math.round((totalHits / totalValidations) * 100) / 100 
     : 0;
   
-  // 定義目標值
-  const targetAverageHitCount = 3; // 目標平均每期命中數至少3
+  // 計算目標達成狀態（使用最佳結果）
   const targetAverageAccuracy = 50; // 目標平均準確率至少50%
-  
-  // 計算目標達成狀態
-  let meetsHitCountTarget = averageHitCount >= targetAverageHitCount;
-  let meetsAccuracyTarget = averageAccuracy >= targetAverageAccuracy;
-  let meetsAllTargets = meetsHitCountTarget && meetsAccuracyTarget;
-  
-  // 注意：iterativeValidation 的完整實現非常長（包含優化循環）
-  // 這裡只包含基本驗證邏輯，優化循環部分可以後續添加或簡化
+  meetsHitCountTarget = averageHitCount >= targetAverageHitCount;
+  meetsAccuracyTarget = averageAccuracy >= targetAverageAccuracy;
+  meetsAllTargets = meetsHitCountTarget && meetsAccuracyTarget;
   
   // 生成未來一期的預測（使用最終權重和所有歷史數據）
   let latestPeriodPrediction = null;
@@ -916,50 +1115,68 @@ function iterativeValidation(allResults, lookbackPeriods = 100) {
     let futureStrategy = 'optimal';
     
     if (futureCandidateCombinations && futureCandidateCombinations.length > 0) {
-      // 如果有歷史數據，優先選擇歷史表現最好的策略
-      const strategyPerformance = {};
-      historicalResults.forEach(result => {
-        if (result.strategy) {
-          if (!strategyPerformance[result.strategy]) {
-            strategyPerformance[result.strategy] = { hits: 0, total: 0, atLeast3: 0 };
-          }
-          strategyPerformance[result.strategy].hits += result.comparison.hitCount;
-          strategyPerformance[result.strategy].total += 1;
-          if (result.comparison.hitCount >= 3) {
-            strategyPerformance[result.strategy].atLeast3 += 1;
-          }
-        }
-      });
-      
-      // 找到表現最好的策略
-      let bestStrategyName = null;
-      let bestStrategyScore = -1;
-      Object.keys(strategyPerformance).forEach(strategy => {
-        const perf = strategyPerformance[strategy];
-        if (perf.total > 0) {
-          const atLeast3Rate = perf.atLeast3 / perf.total;
-          const avgHitCount = perf.hits / perf.total;
-          const score = atLeast3Rate * 100 + avgHitCount * 20; // 至少3個命中率權重更高
-          if (score > bestStrategyScore) {
-            bestStrategyScore = score;
-            bestStrategyName = strategy;
-          }
-        }
-      });
-      
-      // 優先選擇歷史表現最好的策略的組合
-      if (bestStrategyName) {
-        const bestStrategyCombination = futureCandidateCombinations.find(
-          c => c.strategy === bestStrategyName
-        );
-        if (bestStrategyCombination && bestStrategyCombination.numbers) {
-          futurePredictedNumbers = bestStrategyCombination.numbers;
-          futureStrategy = bestStrategyName;
-        }
+      // 使用模擬來評估候選組合
+      const futureSimulationRounds = 1000; // 對未來預測使用更多模擬次數
+      const futureSimulatedDraws = [];
+      for (let s = 0; s < futureSimulationRounds; s++) {
+        futureSimulatedDraws.push(simulateSingleDraw(1, 49, 6));
       }
       
-      // 如果沒有找到，使用智能選擇
-      if (!futurePredictedNumbers) {
+      // 對每個候選組合進行模擬評估
+      const futureCandidateScores = [];
+      futureCandidateCombinations.forEach(candidate => {
+        if (candidate && candidate.numbers && candidate.numbers.length > 0) {
+          const candidateNumbers = candidate.numbers.map(n => typeof n === 'object' ? n.number : n);
+          const simulationStats = calculateHitStatistics(candidateNumbers, futureSimulatedDraws);
+          
+          // 計算模擬分數：平均命中數 + 命中率 * 10
+          const simulationScore = simulationStats.averageHitsPerDraw + simulationStats.hitRate * 10;
+          
+          // 如果有歷史數據，考慮歷史表現
+          let historicalBonus = 0;
+          if (historicalResults.length > 0) {
+            const strategyPerformance = {};
+            historicalResults.forEach(result => {
+              if (result.strategy === candidate.strategy) {
+                if (!strategyPerformance[result.strategy]) {
+                  strategyPerformance[result.strategy] = { hits: 0, total: 0, atLeast3: 0 };
+                }
+                strategyPerformance[result.strategy].hits += result.comparison.hitCount;
+                strategyPerformance[result.strategy].total += 1;
+                if (result.comparison.hitCount >= 3) {
+                  strategyPerformance[result.strategy].atLeast3 += 1;
+                }
+              }
+            });
+            
+            if (strategyPerformance[candidate.strategy]) {
+              const perf = strategyPerformance[candidate.strategy];
+              if (perf.total > 0) {
+                const atLeast3Rate = perf.atLeast3 / perf.total;
+                const avgHitCount = perf.hits / perf.total;
+                historicalBonus = atLeast3Rate * 5 + avgHitCount * 2; // 歷史表現加成
+              }
+            }
+          }
+          
+          futureCandidateScores.push({
+            candidate: candidate,
+            numbers: candidateNumbers,
+            strategy: candidate.strategy,
+            simulationScore: simulationScore + historicalBonus,
+            simulationStats: simulationStats
+          });
+        }
+      });
+      
+      // 按模擬分數排序，選擇最好的
+      futureCandidateScores.sort((a, b) => b.simulationScore - a.simulationScore);
+      
+      if (futureCandidateScores.length > 0) {
+        futurePredictedNumbers = futureCandidateScores[0].numbers;
+        futureStrategy = futureCandidateScores[0].strategy;
+      } else {
+        // 如果沒有候選組合，使用智能選擇
         futurePredictedNumbers = selectOptimalNumbers(
           futureAnalysis.topNumbers, 
           6, 
@@ -977,12 +1194,29 @@ function iterativeValidation(allResults, lookbackPeriods = 100) {
       futureStrategy = 'optimal';
     }
     
+    // 對最終選擇的未來預測號碼進行模擬評估
+    let futureSimulationStats = null;
+    if (futurePredictedNumbers && futurePredictedNumbers.length > 0) {
+      const futureFinalSimulatedDraws = [];
+      for (let s = 0; s < 1000; s++) {
+        futureFinalSimulatedDraws.push(simulateSingleDraw(1, 49, 6));
+      }
+      const futureFinalNumbersArray = futurePredictedNumbers.map(n => typeof n === 'object' ? n.number : n);
+      futureSimulationStats = calculateHitStatistics(futureFinalNumbersArray, futureFinalSimulatedDraws);
+    }
+    
     // 確保預測號碼有效
     if (futurePredictedNumbers && futurePredictedNumbers.length > 0) {
       latestPeriodPrediction = {
         periodNumber: latestPeriod, // 基於最新期數預測下一期
         predictedNumbers: futurePredictedNumbers.map(n => n.number || n).sort((a, b) => a - b),
         strategy: futureStrategy,
+        simulation: futureSimulationStats ? {
+          averageHitsPerDraw: futureSimulationStats.averageHitsPerDraw,
+          hitRate: futureSimulationStats.hitRate,
+          totalHits: futureSimulationStats.totalHits,
+          numberHits: futureSimulationStats.numberHits
+        } : null,
         topNumbers: futureAnalysis.topNumbers.slice(0, 10).map(n => ({
           number: n.number,
           score: n.score
@@ -1008,6 +1242,17 @@ function iterativeValidation(allResults, lookbackPeriods = 100) {
     validationResults: validationResults,
     latestPeriodPrediction: latestPeriodPrediction,
     finalWeights: currentWeights,
+    retryInfo: {
+      totalRetries: retryCount,
+      maxRetries: maxRetries,
+      meetsTarget: meetsHitCountTarget,
+      allRetryResults: allRetryResults.map(r => ({
+        retryCount: r.retryCount,
+        averageHitCount: r.averageHitCount,
+        averageAccuracy: r.averageAccuracy,
+        meetsHitCountTarget: r.meetsHitCountTarget
+      }))
+    },
     statistics: {
       totalHits: totalHits,
       averageHitsPerPeriod: averageHitCount,

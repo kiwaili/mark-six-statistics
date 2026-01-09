@@ -3,8 +3,16 @@
  * 使用預測號碼模擬多次攪出，根據命中率迭代優化預測號碼
  */
 
-const { analyzeNumbers } = require('./analysisService');
 const { selectOptimalNumbers } = require('./selectionStrategies');
+
+// 延遲加載 analyzeNumbers 以避免循環依賴
+let analyzeNumbers = null;
+function getAnalyzeNumbers() {
+  if (!analyzeNumbers) {
+    analyzeNumbers = require('./analysisService').analyzeNumbers;
+  }
+  return analyzeNumbers;
+}
 
 /**
  * 模擬單次開獎（隨機生成6個號碼）
@@ -99,7 +107,7 @@ function iterativeSimulationOptimization(
   let currentPredictedNumbers = initialPredictedNumbers;
   if (!currentPredictedNumbers || currentPredictedNumbers.length === 0) {
     // 如果沒有提供初始預測號碼，使用預測方法生成
-    const analysisResult = analyzeNumbers(historicalResults, weights);
+    const analysisResult = getAnalyzeNumbers()(historicalResults, weights);
     currentPredictedNumbers = analysisResult.predictedNumbers || 
       analysisResult.topNumbers.slice(0, 6).map(n => n.number);
   }
@@ -194,7 +202,7 @@ function iterativeSimulationOptimization(
     
     // 重新預測需要替換的號碼
     // 使用歷史結果重新分析，排除當前預測號碼中要保留的部分
-    const newAnalysisResult = analyzeNumbers(historicalResults, weights);
+    const newAnalysisResult = getAnalyzeNumbers()(historicalResults, weights);
     
     // 從topNumbers中選擇新的號碼，排除已保留的號碼
     const availableNumbers = newAnalysisResult.topNumbers
