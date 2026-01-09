@@ -22,6 +22,15 @@ function getAnalyzeNumbers() {
  * @returns {Array<number>} 隨機生成的號碼陣列（已排序）
  */
 function simulateSingleDraw(min = 1, max = 49, count = 6) {
+  if (!Number.isInteger(min) || !Number.isInteger(max) || !Number.isInteger(count)) {
+    throw new Error('min/max/count must be integers');
+  }
+  if (min > max) {
+    throw new Error(`min must be <= max (got ${min} > ${max})`);
+  }
+  if (count <= 0) {
+    throw new Error(`count must be > 0 (got ${count})`);
+  }
   const range = max - min + 1;
   if (count > range) {
     throw new Error(`Cannot generate ${count} unique numbers from range ${min}-${max} (only ${range} values available)`);
@@ -45,11 +54,12 @@ function simulateSingleDraw(min = 1, max = 49, count = 6) {
  * @returns {Object} 命中統計 { totalHits: number, hitRate: number, numberHits: Object }
  */
 function calculateHitStatistics(predictedNumbers, simulatedDraws) {
+  const uniquePredictedNumbers = Array.from(new Set(predictedNumbers));
   const numberHits = {};
   let totalHits = 0;
   
   // 初始化每個預測號碼的命中次數
-  predictedNumbers.forEach(num => {
+  uniquePredictedNumbers.forEach(num => {
     numberHits[num] = 0;
   });
   
@@ -58,7 +68,7 @@ function calculateHitStatistics(predictedNumbers, simulatedDraws) {
     const drawSet = new Set(draw);
     let drawHits = 0;
     
-    predictedNumbers.forEach(num => {
+    uniquePredictedNumbers.forEach(num => {
       if (drawSet.has(num)) {
         numberHits[num]++;
         drawHits++;
@@ -68,7 +78,7 @@ function calculateHitStatistics(predictedNumbers, simulatedDraws) {
     totalHits += drawHits;
   });
   
-  const totalPossibleHits = predictedNumbers.length * simulatedDraws.length;
+  const totalPossibleHits = uniquePredictedNumbers.length * simulatedDraws.length;
   const hitRate = totalPossibleHits > 0 ? totalHits / totalPossibleHits : 0;
   
   return {
