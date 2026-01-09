@@ -729,10 +729,10 @@ function iterativeValidation(allResults, lookbackPeriods = 100, maxRetries = 50)
   }
   
   // 重試循環：如果平均命中數未達標，重新運算
-  while (retryCount <= maxRetries) {
+  while (retryCount < maxRetries) {
     validationResults = [];
     
-    let currentWeights = { ...bestWeights };
+    currentWeights = { ...bestWeights };
     
     // 如果是重試，調整權重
     if (retryCount > 0) {

@@ -125,6 +125,16 @@ router.post('/simulate', async (req, res) => {
         message: '請提供有效的攪珠結果資料'
       });
     }
+
+    // 如果提供了預測號碼，驗證格式
+    if (predictedNumbers !== undefined) {
+      if (!Array.isArray(predictedNumbers) || predictedNumbers.length !== 6) {
+        return res.status(400).json({
+          success: false,
+          message: '預測號碼必須是6個號碼的陣列'
+        });
+      }
+    }
     
     // 使用 Promise.resolve 包装同步函数调用
     const simulationResult = await Promise.resolve(

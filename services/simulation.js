@@ -22,6 +22,11 @@ function getAnalyzeNumbers() {
  * @returns {Array<number>} 隨機生成的號碼陣列（已排序）
  */
 function simulateSingleDraw(min = 1, max = 49, count = 6) {
+  const range = max - min + 1;
+  if (count > range) {
+    throw new Error(`Cannot generate ${count} unique numbers from range ${min}-${max} (only ${range} values available)`);
+  }
+  
   const numbers = new Set();
   
   // 生成不重複的隨機號碼
