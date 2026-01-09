@@ -1350,6 +1350,7 @@ function calculateNumberRangeScore(allNumbers, excludePeriodNumbers = null, filt
       }
     });
     
+    // Consider: use `period.periodNumber` (or `period.date`) instead of index for easier debugging/UI mapping
     rangeHits[periodIndex] = periodRangeHits;
   });
   
@@ -1385,6 +1386,10 @@ function calculateNumberRangeScore(allNumbers, excludePeriodNumbers = null, filt
   
   // 找出得分最高的範圍（可能有多個）
   const maxScore = Math.max(...Object.values(rangeScores));
+  if (!(maxScore > 0)) {
+    // Defensive: avoid division by 0/NaN if inputs are unexpected
+    return { scores: rangeScore, rangeHits, rangeStatistics: {} };
+  }
   const topRanges = ranges.filter(range => {
     // 如果得分接近最高分（差距在10%以內），也視為高機率範圍
     return rangeScores[range.id] >= maxScore * 0.9;
@@ -1416,10 +1421,10 @@ function calculateNumberRangeScore(allNumbers, excludePeriodNumbers = null, filt
     rangeStatistics[range.id] = {
       range: `${range.min}-${range.max}`,
       totalHits: rangeTotalHits[range.id],
-      averageHitsPerPeriod: (rangeTotalHits[range.id] / filtered.length).toFixed(2),
-      recentAverageHits: (recentRangeHits[range.id] / recentPeriods).toFixed(2),
+      averageHitsPerPeriod: Math.round((rangeTotalHits[range.id] / filtered.length) * 100) / 100,
+      recentAverageHits: Math.round((recentRangeHits[range.id] / recentPeriods) * 100) / 100,
       recentMaxHits: recentRangeMaxHits[range.id],
-      score: rangeScores[range.id].toFixed(2),
+      score: Math.round(rangeScores[range.id] * 100) / 100,
       isTopRange: topRanges.some(r => r.id === range.id)
     };
   });
