@@ -1286,6 +1286,151 @@ function calculateClusterAnalysisScore(allNumbers, excludePeriodNumbers = null, 
   };
 }
 
+/**
+ * 計算號碼球排列方式分數（基於號碼範圍分佈）
+ * 將1-49分成5個範圍：1-10, 11-20, 21-30, 31-40, 41-49
+ * 統計實際號碼的分佈，命中號碼最多的範圍裡的號碼就是高機率
+ * @param {Array} allNumbers - 所有期數的號碼陣列
+ * @param {Set} excludePeriodNumbers - 可選，要排除的期數集合（期數字串）
+ * @param {Array} filteredNumbers - 可選，預先過濾後的數組（性能優化，避免重複過濾）
+ * @returns {Object} 號碼範圍分數
+ */
+function calculateNumberRangeScore(allNumbers, excludePeriodNumbers = null, filteredNumbers = null) {
+  const rangeScore = {};
+  
+  // 初始化所有可能的號碼 (1-49)
+  for (let i = 1; i <= 49; i++) {
+    rangeScore[i] = 0;
+  }
+  
+  // 定義5個號碼範圍
+  const ranges = [
+    { min: 1, max: 10, id: 0 },
+    { min: 11, max: 20, id: 1 },
+    { min: 21, max: 30, id: 2 },
+    { min: 31, max: 40, id: 3 },
+    { min: 41, max: 49, id: 4 }
+  ];
+  
+  // 使用預過濾的數組（如果提供），否則過濾
+  const filtered = filteredNumbers || (excludePeriodNumbers 
+    ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
+    : allNumbers);
+  
+  if (filtered.length === 0) {
+    return { scores: rangeScore, rangeHits: {}, rangeStatistics: {} };
+  }
+  
+  // 統計每個範圍在每期的命中次數
+  const rangeHits = {}; // 記錄每期每個範圍的命中數
+  const rangeTotalHits = {}; // 記錄每個範圍的總命中數
+  
+  // 初始化
+  ranges.forEach(range => {
+    rangeTotalHits[range.id] = 0;
+  });
+  
+  // 統計每期的範圍分佈
+  filtered.forEach((period, periodIndex) => {
+    const periodRangeHits = {};
+    ranges.forEach(range => {
+      periodRangeHits[range.id] = 0;
+    });
+    
+    // 統計該期每個範圍的命中數
+    period.numbers.forEach(num => {
+      if (num >= 1 && num <= 49) {
+        for (const range of ranges) {
+          if (num >= range.min && num <= range.max) {
+            periodRangeHits[range.id]++;
+            rangeTotalHits[range.id]++;
+            break;
+          }
+        }
+      }
+    });
+    
+    rangeHits[periodIndex] = periodRangeHits;
+  });
+  
+  // 計算每個範圍的平均命中數和最近N期的命中趨勢
+  const recentPeriods = Math.min(20, filtered.length); // 分析最近20期
+  const recentRangeHits = {}; // 最近N期每個範圍的命中數
+  const recentRangeMaxHits = {}; // 最近N期每個範圍的最大單期命中數
+  
+  ranges.forEach(range => {
+    recentRangeHits[range.id] = 0;
+    recentRangeMaxHits[range.id] = 0;
+  });
+  
+  // 統計最近N期的範圍分佈
+  for (let i = 0; i < recentPeriods; i++) {
+    if (rangeHits[i]) {
+      ranges.forEach(range => {
+        const hits = rangeHits[i][range.id] || 0;
+        recentRangeHits[range.id] += hits;
+        recentRangeMaxHits[range.id] = Math.max(recentRangeMaxHits[range.id], hits);
+      });
+    }
+  }
+  
+  // 找出最近N期命中最多的範圍（考慮總命中數和單期最大命中數）
+  const rangeScores = {};
+  ranges.forEach(range => {
+    const avgHits = recentRangeHits[range.id] / recentPeriods;
+    const maxHits = recentRangeMaxHits[range.id];
+    // 綜合評分：平均命中數 * 0.6 + 最大單期命中數 * 0.4
+    rangeScores[range.id] = avgHits * 0.6 + maxHits * 0.4;
+  });
+  
+  // 找出得分最高的範圍（可能有多個）
+  const maxScore = Math.max(...Object.values(rangeScores));
+  const topRanges = ranges.filter(range => {
+    // 如果得分接近最高分（差距在10%以內），也視為高機率範圍
+    return rangeScores[range.id] >= maxScore * 0.9;
+  });
+  
+  // 計算每個號碼的分數
+  // 如果號碼屬於高機率範圍，給予高分
+  for (let num = 1; num <= 49; num++) {
+    for (const range of ranges) {
+      if (num >= range.min && num <= range.max) {
+        // 如果該範圍是高機率範圍
+        if (topRanges.some(r => r.id === range.id)) {
+          // 根據該範圍的得分給予分數
+          const rangeScoreValue = rangeScores[range.id];
+          // 正規化到0-100範圍
+          rangeScore[num] = Math.min(100, (rangeScoreValue / maxScore) * 100);
+        } else {
+          // 非高機率範圍，給予較低分數
+          rangeScore[num] = Math.max(0, (rangeScores[range.id] / maxScore) * 50);
+        }
+        break;
+      }
+    }
+  }
+  
+  // 計算範圍統計信息
+  const rangeStatistics = {};
+  ranges.forEach(range => {
+    rangeStatistics[range.id] = {
+      range: `${range.min}-${range.max}`,
+      totalHits: rangeTotalHits[range.id],
+      averageHitsPerPeriod: (rangeTotalHits[range.id] / filtered.length).toFixed(2),
+      recentAverageHits: (recentRangeHits[range.id] / recentPeriods).toFixed(2),
+      recentMaxHits: recentRangeMaxHits[range.id],
+      score: rangeScores[range.id].toFixed(2),
+      isTopRange: topRanges.some(r => r.id === range.id)
+    };
+  });
+  
+  return {
+    scores: rangeScore,
+    rangeHits: rangeHits,
+    rangeStatistics: rangeStatistics
+  };
+}
+
 module.exports = {
   calculateFrequency,
   calculateWeightedFrequency,
@@ -1303,5 +1448,6 @@ module.exports = {
   calculateAutoregressiveScore,
   calculateSurvivalAnalysisScore,
   calculateExtremeValueScore,
-  calculateClusterAnalysisScore
+  calculateClusterAnalysisScore,
+  calculateNumberRangeScore
 };

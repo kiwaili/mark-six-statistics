@@ -32,7 +32,8 @@ const {
   calculateAutoregressiveScore,
   calculateSurvivalAnalysisScore,
   calculateExtremeValueScore,
-  calculateClusterAnalysisScore
+  calculateClusterAnalysisScore,
+  calculateNumberRangeScore
 } = require('./calculators');
 
 // 導入斐波那契分析
@@ -97,6 +98,7 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
   const survivalResult = calculateSurvivalAnalysisScore(allNumbers, excludePeriodNumbers, filteredNumbers);
   const extremeValueResult = calculateExtremeValueScore(allNumbers, excludePeriodNumbers, filteredNumbers);
   const clusterResult = calculateClusterAnalysisScore(allNumbers, excludePeriodNumbers, filteredNumbers);
+  const numberRangeResult = calculateNumberRangeScore(allNumbers, excludePeriodNumbers, filteredNumbers);
 
   // 正規化各項分數到 0-100 範圍
   const normalize = (scores) => {
@@ -129,12 +131,13 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
   const normalizedSurvivalScore = normalize(survivalResult.scores);
   const normalizedExtremeValueScore = normalize(extremeValueResult.scores);
   const normalizedClusterScore = normalize(clusterResult.scores);
+  const normalizedNumberRangeScore = normalize(numberRangeResult.scores);
 
   // 計算綜合分數（加權組合）
   // 優化權重分配以提高準確率和命中數：更重視趨勢、分布分析和新增的高級方法
   // 預設權重: 頻率: 7%, 加權頻率: 9%, 間隔: 9%, 模式: 5%, 分布: 9%, 趨勢: 8%, 卡方: 3%, 泊松: 3%, 斐波那契: 7%
   // 原有新增方法權重: 相關性: 7%, 熵: 5%, 馬可夫鏈: 9%, 組合數學: 8%
-  // 新增高級方法權重: 自回歸: 6%, 生存分析: 7%, 極值理論: 6%, 聚類分析: 7%
+  // 新增高級方法權重: 自回歸: 6%, 生存分析: 7%, 極值理論: 6%, 聚類分析: 7%, 號碼範圍: 6%
   // 注意：迭代驗證會根據實際表現動態調整所有權重。
   // 如果提供了自訂權重，則使用自訂權重
   const defaultWeights = {
@@ -154,7 +157,8 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
     autoregressive: 0.06,
     survival: 0.07,
     extremeValue: 0.06,
-    cluster: 0.07
+    cluster: 0.07,
+    numberRange: 0.06
   };
   
   const finalWeights = {
@@ -174,7 +178,8 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
     autoregressive: weights.autoregressive !== undefined ? weights.autoregressive : defaultWeights.autoregressive,
     survival: weights.survival !== undefined ? weights.survival : defaultWeights.survival,
     extremeValue: weights.extremeValue !== undefined ? weights.extremeValue : defaultWeights.extremeValue,
-    cluster: weights.cluster !== undefined ? weights.cluster : defaultWeights.cluster
+    cluster: weights.cluster !== undefined ? weights.cluster : defaultWeights.cluster,
+    numberRange: weights.numberRange !== undefined ? weights.numberRange : defaultWeights.numberRange
   };
   
   // 正規化權重，確保總和為1
@@ -182,7 +187,8 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
                       finalWeights.pattern + finalWeights.distribution + finalWeights.trend + 
                       finalWeights.chiSquare + finalWeights.poisson + finalWeights.fibonacci +
                       finalWeights.correlation + finalWeights.entropy + finalWeights.markov + finalWeights.combinatorial +
-                      finalWeights.autoregressive + finalWeights.survival + finalWeights.extremeValue + finalWeights.cluster;
+                      finalWeights.autoregressive + finalWeights.survival + finalWeights.extremeValue + finalWeights.cluster +
+                      finalWeights.numberRange;
   if (totalWeight > 0) {
     Object.keys(finalWeights).forEach(key => {
       finalWeights[key] = finalWeights[key] / totalWeight;
@@ -209,7 +215,8 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
       normalizedAutoregressiveScore[i] * finalWeights.autoregressive +
       normalizedSurvivalScore[i] * finalWeights.survival +
       normalizedExtremeValueScore[i] * finalWeights.extremeValue +
-      normalizedClusterScore[i] * finalWeights.cluster;
+      normalizedClusterScore[i] * finalWeights.cluster +
+      normalizedNumberRangeScore[i] * finalWeights.numberRange;
   }
   
   // 取得前 40 名（增加候選數量以提高命中至少3個的概率，目標平均命中數至少3）
@@ -233,7 +240,8 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
       autoregressiveScore: Math.round(autoregressiveResult.scores[num] * 100) / 100,
       survivalScore: Math.round(survivalResult.scores[num] * 100) / 100,
       extremeValueScore: Math.round(extremeValueResult.scores[num] * 100) / 100,
-      clusterScore: Math.round(clusterResult.scores[num] * 100) / 100
+      clusterScore: Math.round(clusterResult.scores[num] * 100) / 100,
+      numberRangeScore: Math.round(numberRangeResult.scores[num] * 100) / 100
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 40); // 增加到40個候選號碼，提供更多選擇以提高命中率
@@ -367,6 +375,11 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
         scores: clusterResult.scores,
         clusters: clusterResult.clusters,
         clusterCenters: clusterResult.clusterCenters
+      },
+      numberRange: {
+        scores: numberRangeResult.scores,
+        rangeHits: numberRangeResult.rangeHits,
+        rangeStatistics: numberRangeResult.rangeStatistics
       }
     }
   };
