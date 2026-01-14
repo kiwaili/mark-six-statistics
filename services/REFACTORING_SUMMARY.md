@@ -30,9 +30,18 @@
    - `calculateFibonacciScore`
    - Helper functions (internal)
 
+4. **neural.js** - Neural network analysis ✅ New
+   - `createNeuralNetwork` - 創建多層感知器神經網絡
+   - `trainNeuralNetwork` - 訓練神經網絡
+   - `predictWithNeuralNetwork` - 使用神經網絡進行預測
+   - `neuralNetworkAnalysis` - 神經網絡分析主函數
+   - `prepareInputFeatures` - 準備輸入特徵
+   - `prepareOutputLabels` - 準備輸出標籤
+   - Helper functions (sigmoid, backpropagation, etc.)
+
 ## Modules to Create
 
-4. **selectionStrategies.js** - Number selection strategies
+5. **selectionStrategies.js** - Number selection strategies
    - `selectOptimalNumbers` (lines 1158-1327)
    - `generateMultipleCandidates` (lines 1333-1474)
    - `selectWithDiversity` (lines 1479-1522)
@@ -44,12 +53,13 @@
    - `selectBasedOnHistory` (lines 1693-1752)
    - `determineStrategy` (lines 1757-1821)
 
-5. **betting.js** - Betting suggestions
+6. **betting.js** - Betting suggestions
    - `generateCombinations` (lines 3081-3102)
    - `generateCompoundBetSuggestion100` (lines 3110-3232)
    - `generateCompoundBetSuggestions` (lines 3240-3314)
 
-6. **validation.js** - Validation and weight adjustment
+7. **validation.js** - Validation and weight adjustment
+   - 已整合神經網絡分析功能
    - `comparePrediction` (lines 1829-1862)
    - `adjustWeights` (lines 1873-2178)
    - `iterativeValidation` (lines 2186-3073)
@@ -68,9 +78,10 @@ services/
 ├── utils.js                    ✅ Created
 ├── calculators.js              ✅ Created
 ├── fibonacci.js                ✅ Created
-├── selectionStrategies.js      ⏳ To create
-├── betting.js                  ⏳ To create
-├── validation.js               ⏳ To create
-├── analysisService.js          ⏳ To refactor
-└── analysisService.refactored.js ✅ Template created
+├── neural.js                   ✅ Created
+├── selectionStrategies.js      ✅ Created
+├── betting.js                  ✅ Created
+├── validation.js               ✅ Created (已整合神經網絡)
+├── simulation.js               ✅ Created
+└── analysisService.js          ✅ Refactored
 ```

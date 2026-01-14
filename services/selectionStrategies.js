@@ -70,11 +70,12 @@ function selectOptimalNumbers(topNumbers, count = 6, historicalResults = null) {
     const numbers = candidate.numbers;
     let score = 0;
     
-    // 1. 原始分數總和（權重40%，提高以確保選擇高分號碼）
+    // 優化：更重視歷史表現和原始分數以提高命中數
+    // 1. 原始分數總和（權重35%，確保選擇高分號碼）
     const totalOriginalScore = numbers.reduce((sum, n) => sum + (n.score || 0), 0);
-    score += totalOriginalScore * 0.40;
+    score += totalOriginalScore * 0.35;
     
-    // 2. 多樣性分數（權重20%）
+    // 2. 多樣性分數（權重15%，降低權重）
     let diversityScore = 0;
     for (let i = 0; i < numbers.length; i++) {
       for (let j = i + 1; j < numbers.length; j++) {
@@ -82,21 +83,21 @@ function selectOptimalNumbers(topNumbers, count = 6, historicalResults = null) {
         diversityScore += distance;
       }
     }
-    score += (diversityScore / (numbers.length * (numbers.length - 1) / 2)) * 0.20;
+    score += (diversityScore / (numbers.length * (numbers.length - 1) / 2)) * 0.15;
     
-    // 3. 分數分布均勻性（權重10%）
+    // 3. 分數分布均勻性（權重8%，降低權重）
     const scores = numbers.map(n => n.score || 0);
     const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
     const variance = scores.reduce((sum, s) => sum + Math.pow(s - avgScore, 2), 0) / scores.length;
-    score += (100 / (1 + variance)) * 0.10;
+    score += (100 / (1 + variance)) * 0.08;
     
-    // 4. 號碼範圍覆蓋（權重10%）
+    // 4. 號碼範圍覆蓋（權重7%，降低權重）
     const minNum = Math.min(...numbers.map(n => n.number));
     const maxNum = Math.max(...numbers.map(n => n.number));
     const range = maxNum - minNum;
-    score += (range / 49) * 100 * 0.10;
+    score += (range / 49) * 100 * 0.07;
     
-    // 5. 歷史表現加成（權重20%，如果有歷史數據，提高權重以更重視歷史表現）
+    // 5. 歷史表現加成（權重35%，大幅提高權重以更重視歷史表現）
     let historyBonus = 0;
     if (historicalResults && historicalResults.length > 0) {
       const strategyPerf = historicalResults
@@ -106,11 +107,11 @@ function selectOptimalNumbers(topNumbers, count = 6, historicalResults = null) {
       if (strategyPerf.length > 0) {
         const avgHitCount = strategyPerf.reduce((a, b) => a + b, 0) / strategyPerf.length;
         const atLeast3Rate = strategyPerf.filter(h => h >= 3).length / strategyPerf.length;
-        // 歷史平均命中數和至少3個的比率都給予加成（提高加成係數以更重視歷史表現）
-        historyBonus = (avgHitCount * 15) + (atLeast3Rate * 60);
+        // 大幅提高歷史表現的加成係數
+        historyBonus = (avgHitCount * 25) + (atLeast3Rate * 100);
       }
     }
-    score += historyBonus * 0.20;
+    score += historyBonus * 0.35;
     
     return { numbers, strategy: candidate.strategy, score };
   });
@@ -131,14 +132,20 @@ function selectOptimalNumbers(topNumbers, count = 6, historicalResults = null) {
       }
     });
     
-    // 對候選組合進行二次排序：優先選擇歷史至少命中3個比率最高的（提高加成以更重視歷史表現）
+    // 對候選組合進行二次排序：優先選擇歷史至少命中3個比率最高的（大幅提高加成以更重視歷史表現）
     scoredCandidates.forEach(candidate => {
       const perf = strategyPerformance[candidate.strategy];
       if (perf && perf.total > 0) {
         const atLeast3Rate = perf.atLeast3 / perf.total;
         const avgHitCount = perf.hits / perf.total;
-        // 如果歷史至少命中3個的比率高或平均命中數高，給予額外加成（提高加成係數）
-        candidate.score += atLeast3Rate * 150 + avgHitCount * 30;
+        // 大幅提高加成係數以更重視歷史表現
+        // 如果歷史至少命中3個的比率高，給予非常大的加成
+        candidate.score += atLeast3Rate * 250 + avgHitCount * 50;
+        
+        // 如果歷史平均命中數達到或超過3，給予額外大加成
+        if (avgHitCount >= 3) {
+          candidate.score += 100;
+        }
       }
     });
   }
@@ -152,7 +159,7 @@ function selectOptimalNumbers(topNumbers, count = 6, historicalResults = null) {
  * 生成多個候選組合（用於回測優化）
  * 在迭代驗證中使用，生成更多候選組合以找到最佳組合
  */
-function generateMultipleCandidates(topNumbers, count = 6, historicalResults = null) {
+function generateMultipleCandidates(topNumbers, count = 6, historicalResults = null, maxCandidates = 12) {
   // 檢查輸入有效性
   if (!topNumbers || topNumbers.length === 0) {
     return [];
@@ -160,7 +167,7 @@ function generateMultipleCandidates(topNumbers, count = 6, historicalResults = n
   
   const candidates = [];
   
-  // 基本策略組合（8個）
+  // 基本策略組合（優先選擇最重要的策略）
   const top6 = topNumbers.slice(0, count);
   if (top6.length === count) {
     candidates.push({ numbers: top6, strategy: 'top6' });
@@ -292,7 +299,16 @@ function generateMultipleCandidates(topNumbers, count = 6, historicalResults = n
     uniqueCandidates.push({ numbers: topNumbers.slice(0, count), strategy: 'top6' });
   }
   
-  return uniqueCandidates;
+  // 性能優化：限制返回的候選組合數量
+  // 優先保留基本策略（top6, diversity, balanced, evenly等）
+  const priorityStrategies = ['top6', 'diversity', 'balanced', 'evenly', 'hybrid', 'history'];
+  const prioritized = uniqueCandidates.filter(c => priorityStrategies.includes(c.strategy));
+  const others = uniqueCandidates.filter(c => !priorityStrategies.includes(c.strategy));
+  
+  // 優先返回優先策略，然後補充其他策略，總數不超過maxCandidates
+  const result = [...prioritized, ...others].slice(0, maxCandidates);
+  
+  return result.length > 0 ? result : uniqueCandidates.slice(0, maxCandidates);
 }
 
 /**
