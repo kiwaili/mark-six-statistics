@@ -133,7 +133,8 @@ function backPropagation(input, target, network, forwardResult, learningRate = 0
   const updatedBiases = network.biases.map(b => [...b]);
   
   for (let layer = network.weights.length - 1; layer >= 0; layer--) {
-    const currentActivation = activations[layer];    
+    const currentActivation = activations[layer];
+    const nextActivation = activations[layer + 1];
     
     // 更新權重和偏置
     for (let i = 0; i < network.weights[layer].length; i++) {
