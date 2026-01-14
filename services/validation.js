@@ -49,8 +49,13 @@ function integrateNeuralNetworkScores(topNumbers, neuralTopNumbers) {
   // 更新topNumbers，加入神經網絡的預測分數
   const updatedTopNumbers = topNumbers.map(item => {
     const neuralBonus = neuralScoreMap[item.number] || 0;
+    // 將神經網絡分數正規化到0-100範圍（與分析分數的範圍一致）
+    // neuralBonus範圍是0-140（neuralScore 0-100 + rankBonus 0-40），需要正規化到0-100
+    const normalizedNeuralBonus = (neuralBonus / 140) * 100;
     // 神經網絡分數佔總分的權重（使用模組級常數）
-    const updatedScore = item.score * (1 - NEURAL_NETWORK_WEIGHT) + (neuralBonus / 100) * NEURAL_NETWORK_WEIGHT;
+    // 神經網絡貢獻應該是分析分數的15%，而不是固定值
+    // 對於分數50：50 × 0.85 + (100/100) × 50 × 0.15 = 42.5 + 7.5 = 50（神經網絡貢獻15%）
+    const updatedScore = item.score * (1 - NEURAL_NETWORK_WEIGHT) + (normalizedNeuralBonus / 100) * item.score * NEURAL_NETWORK_WEIGHT;
     return {
       ...item,
       score: updatedScore,
