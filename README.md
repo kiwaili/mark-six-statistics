@@ -42,12 +42,25 @@
   - **$100 複式建議**: 精選 10 注組合（總金額 $100），適合預算有限的投注者
 
 ### 4. 迭代驗證
-- **歷史回測**: 從最新期數往前推 N 期（預設 10 期），逐步驗證預測準確率
+- **歷史回測**: 從最新期數往前推 N 期（預設 100 期），逐步驗證預測準確率
 - **智能學習**: 根據驗證結果自動調整權重參數，提升預測準確率
 - **多組權重測試**: 自動測試多組初始權重，選擇表現最佳的一組
+- **模擬評估優化**: 在驗證過程中，對每個候選組合進行1000次模擬評估，選擇模擬表現最好的組合
+- **自動重試機制**: 如果平均每期命中數未達到3或以上，自動重試最多50次
+  - 每次重試會調整權重，嘗試不同的組合
+  - 選擇最接近目標（平均命中數3）的結果
+  - 記錄所有重試結果，提供詳細的重試統計
 - **詳細統計**: 提供平均準確率、平均命中數、覆蓋率等統計指標
 
-### 5. 前端介面
+### 5. 模擬優化
+- **迭代模擬優化**: 使用預測號碼模擬1000次開獎，根據命中率迭代優化預測號碼
+  - 保留命中率高的號碼
+  - 對命中率低的號碼，重新使用預測方法計算替換
+  - 重複迭代直到收斂或達到最大迭代次數
+- **批量模擬測試**: 批量模擬測試預測號碼的有效性，提供詳細的命中統計
+- **可配置參數**: 支援自訂模擬輪數、迭代次數、命中率閾值等參數
+
+### 6. 前端介面
 - **響應式設計**: 支援桌面、平板和手機裝置
 - **年份選擇器**: 可選擇查詢的年份範圍
 - **結果展示**: 以表格形式展示攪珠結果，號碼以徽章樣式顯示
@@ -332,9 +345,20 @@ docker run -p 8080:8080 mark-six-statistics
 ```json
 {
   "results": [...],
-  "lookbackPeriods": 10
+  "lookbackPeriods": 100
 }
 ```
+
+**注意**: `lookbackPeriods` 參數在函數內部實際使用，API 端點目前不支援此參數，使用預設值 100
+
+**參數說明：**
+- `results` (必需): 歷史開獎結果陣列
+- `lookbackPeriods` (可選): 往前推的期數，預設 100
+
+**功能特點：**
+- 自動重試機制：如果平均每期命中數未達到3或以上，自動重試最多50次
+- 模擬評估：對每個候選組合進行1000次模擬評估，選擇最佳組合
+- 智能選擇：選擇最接近目標（平均命中數3）的結果
 
 **回應範例：**
 ```json
@@ -348,17 +372,42 @@ docker run -p 8080:8080 mark-six-statistics
       {
         "trainingPeriod": "2025001",
         "targetPeriod": "2025002",
-        "predictedNumbers": [15, 23, 31, ...],
-        "actualNumbers": [15, 24, 32, ...],
+        "predictedNumbers": [15, 23, 31, 7, 12, 28],
+        "actualNumbers": [15, 24, 32, 7, 12, 28],
+        "strategy": "optimal",
+        "simulation": {
+          "averageHitsPerDraw": 1.2,
+          "hitRate": 0.2,
+          "totalHits": 1200,
+          "numberHits": {
+            "15": 210,
+            "23": 198,
+            "31": 205,
+            "7": 192,
+            "12": 201,
+            "28": 194
+          }
+        },
         "comparison": {
-          "hitCount": 3,
-          "totalPredicted": 15,
+          "hitCount": 4,
+          "totalPredicted": 6,
           "totalActual": 6,
-          "hits": [15],
-          "misses": [24, 32, ...],
-          "predictedButNotActual": [23, 31, ...],
-          "accuracy": 20.0,
-          "coverage": 16.67
+          "hits": [15, 7, 12, 28],
+          "misses": [24, 32],
+          "predictedButNotActual": [23, 31],
+          "accuracy": 66.67,
+          "coverage": 66.67,
+          "meetsTarget": true,
+          "targetHitCount": 3,
+          "hitCountStatus": "達標",
+          "hitDetails": {
+            "hitCount": 4,
+            "targetHitCount": 3,
+            "meetsTarget": true,
+            "status": "達標",
+            "hits": [15, 7, 12, 28],
+            "misses": [24, 32]
+          }
         },
         "weights": {
           "frequency": 0.08,
@@ -401,9 +450,247 @@ docker run -p 8080:8080 mark-six-statistics
       "cluster": 0.07
     },
     "statistics": {
-      "totalHits": 30,
+      "totalHits": 300,
       "averageHitsPerPeriod": 3.0,
-      "averageAccuracy": 20.0,
+      "averageAccuracy": 50.0,
+      "averageCoverage": 50.0,
+      "targetHitCount": 3,
+      "targetAverageHitCount": 3,
+      "targetAverageAccuracy": 50,
+      "meetsHitCountTarget": true,
+      "meetsAccuracyTarget": true,
+      "meetsAllTargets": true,
+      "periodsWithAtLeast3Hits": 85,
+      "hitRateAtLeast3": 85.0,
+      "hitCountDistribution": {
+        "0": 5,
+        "1": 10,
+        "2": 20,
+        "3": 30,
+        "4": 25,
+        "5": 8,
+        "6": 2
+      },
+      "hitCountDetails": [
+        {
+          "hitCount": 6,
+          "periods": 2,
+          "percentage": 2.0,
+          "meetsTarget": true
+        },
+        {
+          "hitCount": 5,
+          "periods": 8,
+          "percentage": 8.0,
+          "meetsTarget": true
+        },
+        {
+          "hitCount": 4,
+          "periods": 25,
+          "percentage": 25.0,
+          "meetsTarget": true
+        },
+        {
+          "hitCount": 3,
+          "periods": 30,
+          "percentage": 30.0,
+          "meetsTarget": true
+        },
+        {
+          "hitCount": 2,
+          "periods": 20,
+          "percentage": 20.0,
+          "meetsTarget": false
+        },
+        {
+          "hitCount": 1,
+          "periods": 10,
+          "percentage": 10.0,
+          "meetsTarget": false
+        },
+        {
+          "hitCount": 0,
+          "periods": 5,
+          "percentage": 5.0,
+          "meetsTarget": false
+        }
+      ],
+      "targetSummary": {
+        "averageHitCount": {
+          "current": 3.0,
+          "target": 3,
+          "meetsTarget": true,
+          "gap": 0,
+          "status": "達標"
+        },
+        "averageAccuracy": {
+          "current": 50.0,
+          "target": 50,
+          "meetsTarget": true,
+          "gap": 0,
+          "status": "達標"
+        },
+        "overall": {
+          "meetsAllTargets": true,
+          "status": "所有目標已達成"
+        }
+      }
+    },
+    "retryInfo": {
+      "totalRetries": 5,
+      "maxRetries": 50,
+      "meetsTarget": true,
+      "allRetryResults": [
+        {
+          "retryCount": 0,
+          "averageHitCount": 2.5,
+          "averageAccuracy": 18.5,
+          "meetsHitCountTarget": false
+        },
+        {
+          "retryCount": 1,
+          "averageHitCount": 2.8,
+          "averageAccuracy": 19.2,
+          "meetsHitCountTarget": false
+        },
+        {
+          "retryCount": 2,
+          "averageHitCount": 3.1,
+          "averageAccuracy": 20.0,
+          "meetsHitCountTarget": true
+        }
+      ]
+    }
+  }
+}
+```
+
+### 4. POST /api/lottery/simulate
+
+迭代模擬優化預測號碼：使用預測號碼模擬多次開獎，根據命中率迭代優化
+
+**請求體：**
+```json
+{
+  "results": [...],
+  "predictedNumbers": [1, 2, 3, 4, 5, 6],
+  "options": {
+    "simulationRounds": 1000,
+    "maxIterations": 10,
+    "hitThreshold": 0.1,
+    "minKeepCount": 2,
+    "weights": {}
+  }
+}
+```
+
+**參數說明：**
+- `results` (必需): 歷史開獎結果陣列
+- `predictedNumbers` (可選): 初始預測號碼（6個號碼），如果不提供則自動生成
+- `options.simulationRounds` (可選): 每輪模擬次數，預設 1000
+- `options.maxIterations` (可選): 最大迭代次數，預設 10
+- `options.hitThreshold` (可選): 命中率閾值，低於此值的號碼將被替換，預設 0.1 (10%)
+- `options.minKeepCount` (可選): 最少保留的號碼數量，預設 2
+- `options.weights` (可選): 預測方法的權重參數
+
+**回應範例：**
+```json
+{
+  "success": true,
+  "data": {
+    "initialPredictedNumbers": [1, 2, 3, 4, 5, 6],
+    "finalPredictedNumbers": [7, 12, 23, 31, 35, 42],
+    "iterations": 5,
+    "converged": true,
+    "finalHitStatistics": {
+      "totalHits": 1200,
+      "hitRate": 0.2,
+      "averageHitsPerDraw": 1.2,
+      "numberHits": {
+        "7": 210,
+        "12": 198,
+        "23": 205,
+        "31": 192,
+        "35": 201,
+        "42": 194
+      }
+    },
+    "iterationHistory": [
+      {
+        "iteration": 1,
+        "predictedNumbers": [1, 2, 3, 4, 5, 6],
+        "hitStatistics": {
+          "totalHits": 800,
+          "hitRate": 0.133,
+          "averageHitsPerDraw": 0.8,
+          "numberHits": { "1": 120, "2": 135, ... },
+          "numberHitRates": { "1": 0.12, "2": 0.135, ... }
+        },
+        "highHitNumbers": [2, 3],
+        "lowHitNumbers": [1, 4, 5, 6],
+        "replacementCount": 4,
+        "newPredictedNumbers": [2, 3, 15, 23, 31, 35]
+      }
+    ],
+    "options": {
+      "simulationRounds": 1000,
+      "maxIterations": 10,
+      "hitThreshold": 0.1,
+      "minKeepCount": 2
+    }
+  }
+}
+```
+
+### 5. POST /api/lottery/simulate/batch
+
+批量模擬測試：批量模擬測試預測號碼的有效性
+
+**請求體：**
+```json
+{
+  "results": [...],
+  "predictedNumbers": [1, 2, 3, 4, 5, 6],
+  "rounds": 1000,
+  "batchSize": 100
+}
+```
+
+**參數說明：**
+- `results` (必需): 歷史開獎結果陣列
+- `predictedNumbers` (必需): 預測號碼（6個號碼）
+- `rounds` (可選): 模擬輪數，預設 1000
+- `batchSize` (可選): 每批模擬次數，預設 100
+
+**回應範例：**
+```json
+{
+  "success": true,
+  "data": {
+    "predictedNumbers": [1, 2, 3, 4, 5, 6],
+    "totalRounds": 1000,
+    "overallHitRate": 0.15,
+    "averageHitsPerDraw": 0.9,
+    "batchResults": [
+      {
+        "batch": 1,
+        "rounds": 100,
+        "hitStatistics": {
+          "totalHits": 90,
+          "hitRate": 0.15,
+          "averageHitsPerDraw": 0.9
+        }
+      }
+    ]
+  }
+}
+```
+
+## 技術架構
+
+### 後端
+- **Node.js + Express**: 輕量級 Web 框架
+- **模組化架構**: 將不同功能拆分到獨立模組
       "averageCoverage": 50.0
     }
   }
@@ -554,13 +841,18 @@ compositeScore =
   normalizedClusterScore * weight_cluster
 ```
 
-### 15. 智能學習
+### 15. 智能學習與自動重試
 在迭代驗證過程中，系統會：
-1. 分析命中號碼和未命中號碼在各指標中的排名
-2. 計算各指標的效能分數
-3. 根據準確率差距動態調整學習率
-4. 增加表現好的指標權重，減少表現差的指標權重
-5. 確保權重總和為 1，且每個權重在合理範圍內（0.1 - 0.5）
+1. **模擬評估優化**: 對每個候選組合進行1000次模擬評估，選擇模擬表現最好的組合
+2. **分析命中號碼和未命中號碼在各指標中的排名**
+3. **計算各指標的效能分數**
+4. **根據準確率差距動態調整學習率**
+5. **增加表現好的指標權重，減少表現差的指標權重**
+6. **確保權重總和為 1，且每個權重在合理範圍內（0.05 - 0.5）**
+7. **自動重試機制**: 如果平均每期命中數未達到3或以上，自動重試最多50次
+   - 每次重試會調整權重，嘗試不同的組合
+   - 選擇最接近目標（平均命中數3）的結果
+   - 記錄所有重試結果，提供詳細的重試統計
 
 ### 7. 複式投注建議演算法
 
