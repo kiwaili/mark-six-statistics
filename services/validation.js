@@ -9,6 +9,10 @@ const { selectOptimalNumbers, generateMultipleCandidates } = require('./selectio
 const { calculateHitStatistics, simulateSingleDraw } = require('./simulation');
 const { neuralNetworkAnalysis } = require('./neural');
 
+// 神經網絡權重配置常數
+// 神經網絡預測分數在綜合評分中的權重（15%）
+const NEURAL_NETWORK_WEIGHT = 0.15;
+
 // analyzeNumbers 需要從主服務導入（暫時，稍後會重構）
 // 注意：這會創建循環依賴，需要重構 analyzeNumbers 到獨立模組
 let analyzeNumbers = null;
@@ -19,6 +23,46 @@ let analyzeNumbers = null;
  */
 function setAnalyzeNumbers(fn) {
   analyzeNumbers = fn;
+}
+
+/**
+ * 將神經網絡預測分數整合到統計分析的topNumbers中
+ * @param {Array} topNumbers - 統計分析的topNumbers陣列
+ * @param {Array} neuralTopNumbers - 神經網絡預測的topNumbers陣列
+ * @returns {Array} 整合神經網絡分數後的topNumbers陣列（已重新排序）
+ */
+function integrateNeuralNetworkScores(topNumbers, neuralTopNumbers) {
+  if (!neuralTopNumbers || neuralTopNumbers.length === 0) {
+    return topNumbers;
+  }
+  
+  // 為神經網絡預測的號碼添加額外的分數加成
+  const neuralScoreMap = {};
+  neuralTopNumbers.forEach((item, index) => {
+    // 神經網絡的預測分數（正規化到0-100）
+    const neuralScore = (item.score || 0) * 100;
+    // 根據排名給予額外加成（排名越前，加成越高）
+    const rankBonus = (20 - index) * 2;
+    neuralScoreMap[item.number] = neuralScore + rankBonus;
+  });
+  
+  // 更新topNumbers，加入神經網絡的預測分數
+  const updatedTopNumbers = topNumbers.map(item => {
+    const neuralBonus = neuralScoreMap[item.number] || 0;
+    // 神經網絡分數佔總分的權重（使用模組級常數）
+    const updatedScore = item.score * (1 - NEURAL_NETWORK_WEIGHT) + (neuralBonus / 100) * NEURAL_NETWORK_WEIGHT;
+    return {
+      ...item,
+      score: updatedScore,
+      neuralScore: neuralScoreMap[item.number] || 0,
+      originalScore: item.score
+    };
+  });
+  
+  // 重新排序topNumbers
+  updatedTopNumbers.sort((a, b) => b.score - a.score);
+  
+  return updatedTopNumbers;
 }
 
 /**
@@ -868,33 +912,7 @@ function iterativeValidation(allResults, lookbackPeriods = 100, maxRetries = 50)
         
         // 如果有神經網絡預測結果，整合到分析中
         if (neuralTopNumbers && neuralTopNumbers.length > 0) {
-          // 將神經網絡的預測分數整合到統計分析的topNumbers中
-          // 為神經網絡預測的號碼添加額外的分數加成
-          const neuralScoreMap = {};
-          neuralTopNumbers.forEach((item, index) => {
-            // 神經網絡的預測分數（正規化到0-100）
-            const neuralScore = (item.score || 0) * 100;
-            // 根據排名給予額外加成（排名越前，加成越高）
-            const rankBonus = (20 - index) * 2;
-            neuralScoreMap[item.number] = neuralScore + rankBonus;
-          });
-          
-          // 更新analysis.topNumbers，加入神經網絡的預測分數
-          analysis.topNumbers = analysis.topNumbers.map(item => {
-            const neuralBonus = neuralScoreMap[item.number] || 0;
-            // 神經網絡分數佔總分的15%（可調整）
-            const neuralWeight = 0.15;
-            const updatedScore = item.score * (1 - neuralWeight) + (neuralBonus / 100) * neuralWeight;
-            return {
-              ...item,
-              score: updatedScore,
-              neuralScore: neuralScoreMap[item.number] || 0,
-              originalScore: item.score
-            };
-          });
-          
-          // 重新排序topNumbers
-          analysis.topNumbers.sort((a, b) => b.score - a.score);
+          analysis.topNumbers = integrateNeuralNetworkScores(analysis.topNumbers, neuralTopNumbers);
         }
       } catch (error) {
         // 神經網絡分析失敗不影響主要流程
@@ -1338,26 +1356,7 @@ function iterativeValidation(allResults, lookbackPeriods = 100, maxRetries = 50)
           const neuralTopNumbers = neuralResult.topNumbers.slice(0, 20);
           
           // 整合神經網絡預測到未來分析中
-          const neuralScoreMap = {};
-          neuralTopNumbers.forEach((item, index) => {
-            const neuralScore = item.score * 100;
-            const rankBonus = (20 - index) * 2;
-            neuralScoreMap[item.number] = neuralScore + rankBonus;
-          });
-          
-          futureAnalysis.topNumbers = futureAnalysis.topNumbers.map(item => {
-            const neuralBonus = neuralScoreMap[item.number] || 0;
-            const neuralWeight = 0.15;
-            const updatedScore = item.score * (1 - neuralWeight) + (neuralBonus / 100) * neuralWeight;
-            return {
-              ...item,
-              score: updatedScore,
-              neuralScore: neuralScoreMap[item.number] || 0,
-              originalScore: item.score
-            };
-          });
-          
-          futureAnalysis.topNumbers.sort((a, b) => b.score - a.score);
+          futureAnalysis.topNumbers = integrateNeuralNetworkScores(futureAnalysis.topNumbers, neuralTopNumbers);
         }
       }
     } catch (error) {
