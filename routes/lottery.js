@@ -64,7 +64,7 @@ router.post('/analyze', async (req, res) => {
 });
 
 /**
- * 迭代驗證分析：從最新期數往前推N期開始，逐步驗證並調整
+ * 迭代驗證分析：從最新期數往前推N期開始，逐步驗證並調整（使用 SSE 顯示進度）
  * POST /api/lottery/validate
  * Body: { results: [...], lookbackPeriods: 100 }
  */
@@ -80,21 +80,65 @@ router.post('/validate', async (req, res) => {
       });
     }
 
-    // 使用 Promise.resolve 包装同步函数调用，明确表示这是一个异步操作
-    // 注意：此函数仍然是同步执行，可能会阻塞事件循环长达数分钟
-    const validation = await Promise.resolve(analysisService.iterativeValidation(results, lookbackPeriods));
-
-    res.json({
-      success: true,
-      data: validation
+    // 設置 SSE 響應頭
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // 禁用 nginx 緩衝
+    // 定義進度回調函數
+    let clientClosed = false;
+    req.on('close', () => { clientClosed = true; });
+    const progressCallback = (progressData) => {
+      if (clientClosed || res.writableEnded) return;
+      try {
+        // 確保進度數據包含 type 字段
+        const dataWithType = {
+          type: 'progress',
+          ...progressData
+        };
+        res.write(`data: ${JSON.stringify(dataWithType)}\n\n`);
+      } catch (err) {
+        console.error('發送進度更新失敗:', err);
+      }
+    };
+    // 發送開始消息
+    res.write(`data: ${JSON.stringify({ type: 'start', message: '開始迭代驗證...' })}\n\n`);
+    // 在異步上下文中執行驗證
+    setImmediate(async () => {
+      try {
+        // 執行驗證，傳入進度回調
+        const validation = await Promise.resolve(
+          analysisService.iterativeValidation(results, lookbackPeriods, 50, progressCallback)
+        );
+        // 發送完成消息和結果
+        if (!clientClosed && !res.writableEnded) {
+          res.write(`data: ${JSON.stringify({ type: 'complete', message: '迭代驗證完成' })}\n\n`);
+          res.write(`data: ${JSON.stringify({ type: 'result', data: validation })}\n\n`);
+          res.end();
+        }
+      } catch (error) {
+        console.error('迭代驗證失敗:', error);
+        try {
+          res.write(`data: ${JSON.stringify({
+            type: 'error',
+            message: '迭代驗證失敗',
+            error: error.message
+          })}\n\n`);
+        } catch (writeErr) {
+          console.error('發送錯誤消息失敗:', writeErr);
+        }
+        res.end();
+      }
     });
   } catch (error) {
-    console.error('迭代驗證失敗:', error);
-    res.status(500).json({
-      success: false,
-      message: '迭代驗證失敗',
-      error: error.message
-    });
+    console.error('迭代驗證路由錯誤:', error);
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        message: '迭代驗證失敗',
+        error: error.message
+      });
+    }
   }
 });
 
