@@ -808,12 +808,9 @@
             loadingText.textContent = '正在進行迭代驗證...（這可能需要一些時間）';
             progressText.textContent = '';
 
-            let eventSource = null;
             let validationResult = null;
 
             try {
-                // 使用 EventSource 接收 SSE 事件
-                // 注意：EventSource 只支持 GET 請求，所以我們需要使用 POST 並通過其他方式
                 // 改用 fetch 配合 ReadableStream
                 const response = await fetch('/api/lottery/validate', {
                     method: 'POST',
@@ -932,9 +929,6 @@
                 validateButton.disabled = false;
                 loading.style.display = 'none';
                 progressContainer.style.display = 'none';
-                if (eventSource) {
-                    eventSource.close();
-                }
             }
         }
 
