@@ -9,7 +9,7 @@ const LotteryResultDTO = require('../models/LotteryResultDTO');
  */
 function convertDateFormat(dateStr) {
   if (!dateStr) return dateStr;
-  
+
   // 匹配 dd/mm/yyyy 格式
   const match = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (match) {
@@ -18,7 +18,7 @@ function convertDateFormat(dateStr) {
     const year = match[3];
     return `${year}-${month}-${day}`;
   }
-  
+
   // 如果格式不符合，返回原始字串
   return dateStr;
 }
@@ -29,7 +29,7 @@ function convertDateFormat(dateStr) {
 async function fetchLotteryResultsByYear(year) {
   try {
     const url = `https://lottery.hk/liuhecai/jieguo/${year}`;
-    
+
     // 取得網頁內容
     const response = await axios.get(url, {
       headers: {
@@ -42,7 +42,7 @@ async function fetchLotteryResultsByYear(year) {
 
     // 查找目標表格
     const table = $('table.-center._results');
-    
+
     if (table.length === 0) {
       console.warn(`年份 ${year} 未找到目標表格`);
       return [];
@@ -58,11 +58,11 @@ async function fetchLotteryResultsByYear(year) {
       if (cells.length >= 3) {
         // 提取期數
         const periodNumber = $row.find('td').eq(0).text().trim();
-        
+
         // 提取日期並轉換格式 (dd/mm/yyyy -> yyyy-mm-dd)
         const rawDate = $row.find('td').eq(1).text().trim();
         const date = convertDateFormat(rawDate);
-        
+
         // 提取號碼（可能有多列）
         const numbers = [];
         for (let i = 2; i < cells.length; i++) {
@@ -116,7 +116,7 @@ async function fetchLotteryResults(startYear, endYear) {
     }
 
     const yearResults = await Promise.all(yearPromises);
-    
+
     // 合併所有年份的結果
     yearResults.forEach(results => {
       allResults.push(...results);
@@ -127,18 +127,18 @@ async function fetchLotteryResults(startYear, endYear) {
       // 解析日期，支援多種格式
       const parseDate = (dateStr) => {
         if (!dateStr) return new Date(0);
-        
+
         // 嘗試直接解析
         let date = new Date(dateStr);
         if (!isNaN(date.getTime())) {
           return date;
         }
-        
+
         // 處理中文日期格式：2025年1月1日 或 2025-01-01 等
         // 移除"年"、"月"、"日"等字符
         const cleaned = dateStr.replace(/[年月日]/g, '-').replace(/[^\d-]/g, '');
         const parts = cleaned.split('-').filter(p => p);
-        
+
         if (parts.length >= 3) {
           const year = parseInt(parts[0]);
           const month = parseInt(parts[1]) - 1; // 月份從0開始
@@ -148,14 +148,14 @@ async function fetchLotteryResults(startYear, endYear) {
             return date;
           }
         }
-        
+
         // 如果都無法解析，返回最小日期
         return new Date(0);
       };
-      
+
       const dateA = parseDate(a.date);
       const dateB = parseDate(b.date);
-      
+
       // 降序排序：dateB - dateA（最新的在前）
       return dateB.getTime() - dateA.getTime();
     });

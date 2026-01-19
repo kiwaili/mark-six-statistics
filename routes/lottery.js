@@ -12,7 +12,7 @@ router.get('/results', async (req, res) => {
   try {
     const startYear = req.query.startYear ? parseInt(req.query.startYear) : null;
     const endYear = req.query.endYear ? parseInt(req.query.endYear) : null;
-    
+
     const results = await lotteryService.fetchLotteryResults(startYear, endYear);
     res.json({
       success: true,
@@ -38,17 +38,17 @@ router.post('/analyze', async (req, res) => {
   try {
     const results = req.body.results;
     const weights = req.body.weights; // 可選的權重參數
-    
+
     if (!results || !Array.isArray(results) || results.length === 0) {
       return res.status(400).json({
         success: false,
         message: '請提供有效的攪珠結果資料'
       });
     }
-    
+
     // 如果提供了權重參數，使用它；否則使用預設權重
     const analysis = analysisService.analyzeNumbers(results, weights || {});
-    
+
     res.json({
       success: true,
       data: analysis
@@ -72,18 +72,18 @@ router.post('/validate', async (req, res) => {
   try {
     const results = req.body.results;
     const lookbackPeriods = req.body.lookbackPeriods || 100;
-    
+
     if (!results || !Array.isArray(results) || results.length === 0) {
       return res.status(400).json({
         success: false,
         message: '請提供有效的攪珠結果資料'
       });
     }
-    
+
     // 使用 Promise.resolve 包装同步函数调用，明确表示这是一个异步操作
     // 注意：此函数仍然是同步执行，可能会阻塞事件循环长达数分钟
     const validation = await Promise.resolve(analysisService.iterativeValidation(results, lookbackPeriods));
-    
+
     res.json({
       success: true,
       data: validation
@@ -118,7 +118,7 @@ router.post('/simulate', async (req, res) => {
     const results = req.body.results;
     const predictedNumbers = req.body.predictedNumbers;
     const options = req.body.options || {};
-    
+
     if (!results || !Array.isArray(results) || results.length === 0) {
       return res.status(400).json({
         success: false,
@@ -135,7 +135,7 @@ router.post('/simulate', async (req, res) => {
         });
       }
     }
-    
+
     // 使用 Promise.resolve 包装同步函数调用
     const simulationResult = await Promise.resolve(
       simulationService.iterativeSimulationOptimization(
@@ -144,7 +144,7 @@ router.post('/simulate', async (req, res) => {
         options
       )
     );
-    
+
     res.json({
       success: true,
       data: simulationResult
@@ -175,21 +175,21 @@ router.post('/simulate/batch', async (req, res) => {
     const predictedNumbers = req.body.predictedNumbers;
     const rounds = req.body.rounds || 1000;
     const batchSize = req.body.batchSize || 100;
-    
+
     if (!results || !Array.isArray(results) || results.length === 0) {
       return res.status(400).json({
         success: false,
         message: '請提供有效的攪珠結果資料'
       });
     }
-    
+
     if (!predictedNumbers || !Array.isArray(predictedNumbers) || predictedNumbers.length !== 6) {
       return res.status(400).json({
         success: false,
         message: '請提供6個預測號碼'
       });
     }
-    
+
     // 使用 Promise.resolve 包装同步函数调用
     const batchResult = await Promise.resolve(
       simulationService.batchSimulationTest(
@@ -199,7 +199,7 @@ router.post('/simulate/batch', async (req, res) => {
         batchSize
       )
     );
-    
+
     res.json({
       success: true,
       data: batchResult

@@ -78,7 +78,7 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
   const weightedFrequency = calculateWeightedFrequency(allNumbers, excludePeriodNumbers, filteredNumbers);
   const gapScore = calculateGapAnalysis(allNumbers, excludePeriodNumbers, filteredNumbers);
   const patternScore = calculatePatternScore(allNumbers, excludePeriodNumbers, filteredNumbers);
-  
+
   // 計算統計分布分析（傳入排除期數或預過濾的數組）
   const distributionFeatures = calculateDistributionFeatures(allNumbers, excludePeriodNumbers, filteredNumbers);
   const distributionScore = calculateDistributionScore(allNumbers, excludePeriodNumbers, filteredNumbers);
@@ -86,13 +86,13 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
   const chiSquareResult = calculateChiSquareScore(allNumbers, excludePeriodNumbers, filteredNumbers);
   const poissonResult = calculatePoissonScore(allNumbers, excludePeriodNumbers, filteredNumbers);
   const fibonacciResult = calculateFibonacciScore(allNumbers, excludePeriodNumbers, filteredNumbers);
-  
+
   // 計算新增的統計分析方法
   const correlationResult = calculateCorrelationScore(allNumbers, excludePeriodNumbers, filteredNumbers);
   const entropyResult = calculateEntropyScore(allNumbers, excludePeriodNumbers, filteredNumbers);
   const markovResult = calculateMarkovChainScore(allNumbers, excludePeriodNumbers, filteredNumbers);
   const combinatorialResult = calculateCombinatorialScore(allNumbers, excludePeriodNumbers, filteredNumbers);
-  
+
   // 計算新增的高級統計分析方法（用於提高命中數）
   const autoregressiveResult = calculateAutoregressiveScore(allNumbers, excludePeriodNumbers, filteredNumbers);
   const survivalResult = calculateSurvivalAnalysisScore(allNumbers, excludePeriodNumbers, filteredNumbers);
@@ -106,7 +106,7 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
     const max = Math.max(...values);
     const min = Math.min(...values);
     const range = max - min || 1; // 避免除以零
-    
+
     const normalized = {};
     Object.keys(scores).forEach(key => {
       normalized[key] = ((scores[key] - min) / range) * 100;
@@ -160,7 +160,7 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
     cluster: 0.07,
     numberRange: 0.06
   };
-  
+
   const finalWeights = {
     frequency: weights.frequency !== undefined ? weights.frequency : defaultWeights.frequency,
     weightedFrequency: weights.weightedFrequency !== undefined ? weights.weightedFrequency : defaultWeights.weightedFrequency,
@@ -181,24 +181,24 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
     cluster: weights.cluster !== undefined ? weights.cluster : defaultWeights.cluster,
     numberRange: weights.numberRange !== undefined ? weights.numberRange : defaultWeights.numberRange
   };
-  
+
   // 正規化權重，確保總和為1
-  const totalWeight = finalWeights.frequency + finalWeights.weightedFrequency + finalWeights.gap + 
-                      finalWeights.pattern + finalWeights.distribution + finalWeights.trend + 
-                      finalWeights.chiSquare + finalWeights.poisson + finalWeights.fibonacci +
-                      finalWeights.correlation + finalWeights.entropy + finalWeights.markov + finalWeights.combinatorial +
-                      finalWeights.autoregressive + finalWeights.survival + finalWeights.extremeValue + finalWeights.cluster +
-                      finalWeights.numberRange;
+  const totalWeight = finalWeights.frequency + finalWeights.weightedFrequency + finalWeights.gap +
+    finalWeights.pattern + finalWeights.distribution + finalWeights.trend +
+    finalWeights.chiSquare + finalWeights.poisson + finalWeights.fibonacci +
+    finalWeights.correlation + finalWeights.entropy + finalWeights.markov + finalWeights.combinatorial +
+    finalWeights.autoregressive + finalWeights.survival + finalWeights.extremeValue + finalWeights.cluster +
+    finalWeights.numberRange;
   if (totalWeight > 0) {
     Object.keys(finalWeights).forEach(key => {
       finalWeights[key] = finalWeights[key] / totalWeight;
     });
   }
-  
+
   const compositeScore = {};
 
   for (let i = 1; i <= 49; i++) {
-    compositeScore[i] = 
+    compositeScore[i] =
       normalizedFrequency[i] * finalWeights.frequency +
       normalizedWeightedFrequency[i] * finalWeights.weightedFrequency +
       normalizedGapScore[i] * finalWeights.gap +
@@ -218,7 +218,7 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
       normalizedClusterScore[i] * finalWeights.cluster +
       normalizedNumberRangeScore[i] * finalWeights.numberRange;
   }
-  
+
   // 取得前 40 名（增加候選數量以提高命中至少3個的概率，目標平均命中數至少3）
   const topNumbers = Object.entries(compositeScore)
     .map(([num, score]) => ({
@@ -245,13 +245,13 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 40); // 增加到40個候選號碼，提供更多選擇以提高命中率
-  
+
   // 計算統計摘要
   // 使用預先過濾的結果（如果有的話），避免重複過濾
   const numbersForStats = filteredNumbers || allNumbers;
   const filteredTotalPeriods = numbersForStats.length;
   const totalNumbers = Object.values(frequency).reduce((sum, count) => sum + count, 0);
-  
+
   const stats = {
     totalPeriods: filteredTotalPeriods, // 使用過濾後的期數，與 frequency 計算保持一致
     totalNumbers: totalNumbers,
@@ -266,7 +266,7 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
       excludedPeriods: excludePeriodNumbers.size
     } : {})
   };
-  
+
   // 生成複式投注建議（多個選項：7個、8個、9個、10個號碼等）
   let compoundBetSuggestions = null;
   try {
@@ -275,7 +275,7 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
     console.warn('生成複式投注建議失敗:', error.message);
     // 如果生成失敗，不影響主要分析結果
   }
-  
+
   // 生成 $100 複式投注建議
   let compoundBetSuggestion100 = null;
   try {
@@ -284,7 +284,7 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
     console.warn('生成 $100 複式投注建議失敗:', error.message);
     // 如果生成失敗，不影響主要分析結果
   }
-  
+
   // 選擇最終的6個預測號碼（使用智能選擇策略）
   let predictedNumbers = null;
   let predictionStrategy = 'optimal';
@@ -306,7 +306,7 @@ function analyzeNumbers(results, weights = {}, excludePeriodNumbers = null) {
     predictedNumbers = topNumbers.slice(0, 6);
     predictionStrategy = 'top6';
   }
-  
+
   return {
     topNumbers,
     stats,
@@ -403,7 +403,7 @@ if (typeof setImmediate !== 'undefined') {
 }
 
 // 包裝 iterativeValidation 以確保 analyzeNumbers 已設置
-const wrappedIterativeValidation = function(allResults, lookbackPeriods = 100) {
+const wrappedIterativeValidation = function (allResults, lookbackPeriods = 100) {
   // 確保 analyzeNumbers 已設置（如果延遲設置還沒執行，立即設置）
   setAnalyzeNumbers(analyzeNumbers);
   return iterativeValidation(allResults, lookbackPeriods);

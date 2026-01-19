@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>六合彩攪珠結果</title>
@@ -134,8 +136,13 @@
         }
 
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
         .loading-text {
@@ -240,8 +247,10 @@
                 width: 100%;
                 max-width: 200px;
                 padding: 12px;
-                font-size: 16px; /* Prevent zoom on iOS */
-                min-height: 44px; /* iOS touch target minimum */
+                font-size: 16px;
+                /* Prevent zoom on iOS */
+                min-height: 44px;
+                /* iOS touch target minimum */
                 -webkit-appearance: none;
                 appearance: none;
             }
@@ -252,7 +261,8 @@
                 padding: 14px 20px;
                 font-size: 16px;
                 margin-top: 10px;
-                min-height: 44px; /* iOS touch target minimum */
+                min-height: 44px;
+                /* iOS touch target minimum */
                 -webkit-tap-highlight-color: rgba(102, 126, 234, 0.3);
             }
 
@@ -358,20 +368,20 @@
                 padding: 12px !important;
                 font-size: 11px !important;
             }
-            
-            .prediction-card > div:first-child {
+
+            .prediction-card>div:first-child {
                 font-size: 10px !important;
             }
-            
-            .prediction-card > div:nth-child(2) {
+
+            .prediction-card>div:nth-child(2) {
                 font-size: 18px !important;
             }
-            
-            .prediction-card > div:last-child {
+
+            .prediction-card>div:last-child {
                 font-size: 9px !important;
             }
         }
-        
+
         /* iPhone 17 specific adjustments */
         @media screen and (max-width: 430px) {
             .prediction-card {
@@ -396,10 +406,11 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1>六合彩攪珠結果</h1>
-        
+
         <div class="button-container">
             <div class="year-selector">
                 <label for="startYear">年份：</label>
@@ -417,7 +428,8 @@
                 <button class="fetch-button" id="validateButton" onclick="showValidation()" style="display: none;">
                     迭代驗證
                 </button>
-                <button class="fetch-button" id="predictButton" onclick="showLatestPrediction()" style="display: none; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                <button class="fetch-button" id="predictButton" onclick="showLatestPrediction()"
+                    style="display: none; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
                     🎯 最新預測
                 </button>
             </div>
@@ -448,25 +460,25 @@
          */
         function parsePeriodNumber(periodNumber, options = {}) {
             const { convertYear = false, returnNull = false } = options;
-            
+
             if (!periodNumber) {
                 return returnNull ? null : { year: 0, period: 0 };
             }
-            
+
             // 格式 25/132 (年份/期數)
             const match1 = periodNumber.match(/^(\d{2})\/(\d+)$/);
             if (match1) {
                 let year = parseInt(match1[1], 10);
                 const period = parseInt(match1[2], 10);
-                
+
                 // 如果需要轉換年份，將2位數年份轉換為4位數（假設25代表2025）
                 if (convertYear) {
                     year = year < 50 ? 2000 + year : 1900 + year;
                 }
-                
+
                 return { year: year, period: period };
             }
-            
+
             // 格式 2025001 (年份+期數) 或 2025001 (年份+3位期數)
             const match2 = periodNumber.match(/^(\d{4})(\d+)$/);
             if (match2) {
@@ -474,12 +486,12 @@
                 const period = parseInt(match2[2], 10);
                 return { year: year, period: period };
             }
-            
+
             return returnNull ? null : { year: 0, period: 0 };
         }
 
         // 初始化年份選擇器，預設為今年
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             const currentYear = new Date().getFullYear();
             document.getElementById('startYear').value = currentYear;
             document.getElementById('endYear').value = currentYear;
@@ -582,8 +594,8 @@
                         numberArray = result.numbers;
                     }
                 }
-                
-                const numbers = numberArray.map(num => 
+
+                const numbers = numberArray.map(num =>
                     `<span class="number-badge">${num}</span>`
                 ).join('');
 
@@ -610,19 +622,19 @@
             const error = document.getElementById('error');
             const resultsContainer = document.getElementById('resultsContainer');
             const loading = document.getElementById('loading');
-            
+
             if (currentResults.length === 0) {
                 error.textContent = '錯誤: 請先取得攪珠結果';
                 error.style.display = 'block';
                 return;
             }
-            
+
             // 重置狀態
             analysisButton.disabled = true;
             error.style.display = 'none';
             loading.style.display = 'flex';
             document.getElementById('loadingText').textContent = '正在分析號碼...';
-            
+
             try {
                 const response = await fetch('/api/lottery/analyze', {
                     method: 'POST',
@@ -633,9 +645,9 @@
                         results: currentResults
                     })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.success) {
                     displayAnalysisResults(data.data);
                 } else {
@@ -649,10 +661,10 @@
                 loading.style.display = 'none';
             }
         }
-        
+
         function displayAnalysisResults(analysisData) {
             const container = document.getElementById('resultsContainer');
-            
+
             let html = `
                 <div class="stats">
                     <h2 style="color: #667eea; margin-bottom: 15px;">📊 分析結果</h2>
@@ -667,17 +679,17 @@
                     </h3>
                     <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 30px;">
             `;
-            
+
             // 顯示前 10 名號碼
             html += `<div class="prediction-cards" style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 30px; justify-content: center;">`;
             analysisData.topNumbers.forEach((item, index) => {
                 const rank = index + 1;
                 const size = rank <= 3 ? '25px' : '20px'; // 前三名稍大
                 const bgColor = rank === 1 ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' :
-                                rank === 2 ? 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' :
-                                rank === 3 ? 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' :
-                                'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-                
+                    rank === 2 ? 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' :
+                        rank === 3 ? 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' :
+                            'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+
                 html += `
                     <div class="prediction-card" style="
                         background: ${bgColor};
@@ -698,7 +710,7 @@
                 `;
             });
             html += `</div>`;
-            
+
             html += `
                     </div>
                 </div>
@@ -720,7 +732,7 @@
                             </thead>
                             <tbody>
             `;
-            
+
             analysisData.topNumbers.forEach((item, index) => {
                 html += `
                     <tr>
@@ -734,7 +746,7 @@
                     </tr>
                 `;
             });
-            
+
             html += `
                             </tbody>
                         </table>
@@ -757,7 +769,7 @@
                     </p>
                 </div>
             `;
-            
+
             container.innerHTML = html;
         }
 
@@ -766,19 +778,19 @@
             const error = document.getElementById('error');
             const resultsContainer = document.getElementById('resultsContainer');
             const loading = document.getElementById('loading');
-            
+
             if (currentResults.length === 0) {
                 error.textContent = '錯誤: 請先取得攪珠結果';
                 error.style.display = 'block';
                 return;
             }
-            
+
             // 重置狀態
             validateButton.disabled = true;
             error.style.display = 'none';
             loading.style.display = 'flex';
             document.getElementById('loadingText').textContent = '正在進行迭代驗證...（這可能需要一些時間）';
-            
+
             try {
                 const response = await fetch('/api/lottery/validate', {
                     method: 'POST',
@@ -790,9 +802,9 @@
                         lookbackPeriods: 100
                     })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.success) {
                     displayValidationResults(data.data);
                 } else {
@@ -813,11 +825,11 @@
         function displayValidationResults(validationData) {
             // 保存優化後的權重用於預測
             optimizedWeights = validationData.finalWeights;
-            
+
             const container = document.getElementById('resultsContainer');
-            
+
             let html = '';
-            
+
             // 首先顯示最終預測號碼（最突出）
             if (validationData.latestPeriodPrediction) {
                 html += `
@@ -833,7 +845,7 @@
                         </p>
                         <div style="background: rgba(255, 255, 255, 0.98); padding: 25px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);">
                             <div style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin: 25px 0; align-items: center;">`;
-                
+
                 // 顯示預測的6個號碼（更大更突出）
                 validationData.latestPeriodPrediction.predictedNumbers.forEach((num, index) => {
                     html += `
@@ -854,7 +866,7 @@
                             transition: transform 0.3s ease;
                         " onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">${num}</div>`;
                 });
-                
+
                 html += `
                             </div>
                             <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 10px; border-left: 4px solid #667eea;">
@@ -880,7 +892,7 @@
                             <div style="margin-top: 20px; padding: 15px; background: #e8f4f8; border-radius: 10px;">
                                 <p style="color: #333; font-size: 14px; margin-bottom: 10px; font-weight: 600;">前10名候選號碼（按綜合分數排序）：</p>
                                 <div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
-                
+
                 // 顯示前10名候選號碼
                 validationData.latestPeriodPrediction.topNumbers.forEach((item, index) => {
                     const isPredicted = validationData.latestPeriodPrediction.predictedNumbers.includes(item.number);
@@ -895,7 +907,7 @@
                             ${isPredicted ? 'border: 3px solid #fff; box-shadow: 0 3px 10px rgba(0,0,0,0.3); transform: scale(1.05);' : ''}
                         ">${item.number}${isPredicted ? ' ✓' : ''} <span style="font-size: 12px; opacity: 0.95;">(${Math.round(item.score * 100) / 100})</span></span>`;
                 });
-                
+
                 html += `
                                 </div>
                                 <p style="color: #999; font-size: 12px; margin-top: 12px; font-style: italic;">
@@ -906,7 +918,7 @@
                     </div>
                 </div>`;
             }
-            
+
             html += `
                 <div class="stats">
                     <h2 style="color: #667eea; margin-bottom: 15px;">🔄 迭代驗證結果</h2>
@@ -928,10 +940,10 @@
                                 ${Math.round(validationData.statistics.averageHitsPerPeriod * 100) / 100}
                                 <span style="font-size: 12px; color: #666;">/ ${validationData.statistics.targetAverageHitCount}</span>
                             </div>
-                            ${validationData.statistics.meetsHitCountTarget ? 
-                                '<div style="font-size: 11px; color: #28a745; margin-top: 5px;">✓ 達標</div>' : 
-                                `<div style="font-size: 11px; color: #dc3545; margin-top: 5px;">✗ ${validationData.statistics.targetSummary?.averageHitCount?.status || '未達標'}</div>`
-                            }
+                            ${validationData.statistics.meetsHitCountTarget ?
+                    '<div style="font-size: 11px; color: #28a745; margin-top: 5px;">✓ 達標</div>' :
+                    `<div style="font-size: 11px; color: #dc3545; margin-top: 5px;">✗ ${validationData.statistics.targetSummary?.averageHitCount?.status || '未達標'}</div>`
+                }
                         </div>
                         <div style="background: white; padding: 15px; border-radius: 8px;">
                             <div style="font-size: 12px; color: #666; margin-bottom: 5px;">平均準確率</div>
@@ -939,10 +951,10 @@
                                 ${validationData.statistics.averageAccuracy}%
                                 <span style="font-size: 12px; color: #666;">/ ${validationData.statistics.targetAverageAccuracy}%</span>
                             </div>
-                            ${validationData.statistics.meetsAccuracyTarget ? 
-                                '<div style="font-size: 11px; color: #28a745; margin-top: 5px;">✓ 達標</div>' : 
-                                `<div style="font-size: 11px; color: #dc3545; margin-top: 5px;">✗ ${validationData.statistics.targetSummary?.averageAccuracy?.status || '未達標'}</div>`
-                            }
+                            ${validationData.statistics.meetsAccuracyTarget ?
+                    '<div style="font-size: 11px; color: #28a745; margin-top: 5px;">✓ 達標</div>' :
+                    `<div style="font-size: 11px; color: #dc3545; margin-top: 5px;">✗ ${validationData.statistics.targetSummary?.averageAccuracy?.status || '未達標'}</div>`
+                }
                         </div>
                         <div style="background: white; padding: 15px; border-radius: 8px;">
                             <div style="font-size: 12px; color: #666; margin-bottom: 5px;">平均覆蓋率</div>
@@ -1004,31 +1016,31 @@
                             </thead>
                             <tbody>
             `;
-            
+
             // 使用共享的期數解析函數（用於排序，需要轉換年份）
             const parsePeriodForSort = (periodNumber) => {
                 return parsePeriodNumber(periodNumber, { convertYear: true });
             };
-            
+
             // 比較兩個期數，用於排序（新至舊：較新的期數排在前面）
             const comparePeriods = (a, b) => {
                 const periodA = parsePeriodForSort(a.targetPeriod);
                 const periodB = parsePeriodForSort(b.targetPeriod);
-                
+
                 // 先比較年份，年份大的（新的）排在前面
                 if (periodA.year !== periodB.year) {
                     return periodB.year - periodA.year;
                 }
-                
+
                 // 年份相同，比較期數，期數大的（新的）排在前面
                 return periodB.period - periodA.period;
             };
-            
+
             // 計算下一期期數（用於最終預測）
             const parsePeriod = (periodStr) => {
                 return parsePeriodNumber(periodStr, { convertYear: false, returnNull: true });
             };
-            
+
             const latestPeriodParsed = parsePeriod(validationData.latestPeriod);
             let nextPeriodStr = '下一期';
             if (latestPeriodParsed) {
@@ -1042,7 +1054,7 @@
                 // 格式：YY/PPP（例如：25/001）
                 nextPeriodStr = `${String(year2Digit).padStart(2, '0')}/${String(nextPeriod).padStart(3, '0')}`;
             }
-            
+
             // 獲取最終預測號碼（如果有 latestPeriodPrediction，使用它；否則嘗試從驗證結果中獲取）
             let finalPredictedNumbers = [];
             if (validationData.latestPeriodPrediction && validationData.latestPeriodPrediction.predictedNumbers) {
@@ -1053,13 +1065,13 @@
                 // 這通常不會發生，因為後端應該已經計算了 latestPeriodPrediction
                 console.warn('未找到 latestPeriodPrediction，將顯示空預測');
             }
-            
+
             // 在表格開頭加入最終預測行（使用最新期數作為訓練期數）
             if (finalPredictedNumbers.length > 0) {
-                const finalPredictedNumbersHtml = finalPredictedNumbers.map(num => 
+                const finalPredictedNumbersHtml = finalPredictedNumbers.map(num =>
                     `<span class="number-badge" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.2); font-weight: bold; font-size: 14px;">${num}</span>`
                 ).join('');
-                
+
                 html += `
                     <tr style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%); border-top: 3px solid #667eea; border-bottom: 2px solid #667eea;">
                         <td data-label="訓練期數"><strong style="color: #667eea; font-size: 1.1em;">${validationData.latestPeriod}</strong> <span style="color: #f093fb; font-size: 0.9em;" title="使用最新期數作為訓練期數">⭐</span></td>
@@ -1081,29 +1093,29 @@
                     </tr>
                 `;
             }
-            
+
             // 對驗證結果進行排序（按目標期數新至舊排序，不改變計算，只改變顯示）
             const sortedResults = [...validationData.validationResults].sort(comparePeriods);
-            
+
             sortedResults.forEach((result, index) => {
                 const hitCount = result.comparison.hitCount;
                 const accuracy = result.comparison.accuracy;
                 const coverage = result.comparison.coverage;
-                
+
                 // 命中數的顏色標記
                 const hitColor = hitCount >= 3 ? '#28a745' : hitCount >= 1 ? '#ffc107' : '#dc3545';
-                
+
                 // 獲取實際號碼的最後一個號碼（確保類型一致）
-                const lastActualNumber = result.actualNumbers && result.actualNumbers.length > 0 
-                    ? Number(result.actualNumbers[result.actualNumbers.length - 1]) 
+                const lastActualNumber = result.actualNumbers && result.actualNumbers.length > 0
+                    ? Number(result.actualNumbers[result.actualNumbers.length - 1])
                     : null;
-                
+
                 // 格式化號碼顯示（確保號碼由小到大排序）
                 const sortedPredictedNumbers = [...result.predictedNumbers].sort((a, b) => a - b);
                 const predictedNumbers = sortedPredictedNumbers.map(num => {
                     const numValue = Number(num);
                     let bgStyle = '';
-                    
+
                     // 優先檢查：如果號碼是實際號碼的最後一個號碼，顯示一半綠色一半藍色
                     if (lastActualNumber !== null && numValue === lastActualNumber) {
                         // 使用更明確的漸變語法，確保左右各一半
@@ -1117,14 +1129,14 @@
                     else {
                         bgStyle = 'background: #667eea !important;';
                     }
-                    
+
                     return `<span class="number-badge" style="${bgStyle}">${num}</span>`;
                 }).join('');
-                
-                const actualNumbers = result.actualNumbers.map(num => 
+
+                const actualNumbers = result.actualNumbers.map(num =>
                     `<span class="number-badge">${num}</span>`
                 ).join('');
-                
+
                 html += `
                     <tr>
                         <td data-label="訓練期數"><strong>${result.trainingPeriod}</strong></td>
@@ -1137,7 +1149,7 @@
                     </tr>
                 `;
             });
-            
+
             html += `
                             </tbody>
                         </table>
@@ -1159,7 +1171,7 @@
                     </p>
                 </div>
             `;
-            
+
             container.innerHTML = html;
         }
 
@@ -1168,19 +1180,19 @@
             const error = document.getElementById('error');
             const resultsContainer = document.getElementById('resultsContainer');
             const loading = document.getElementById('loading');
-            
+
             if (currentResults.length === 0) {
                 error.textContent = '錯誤: 請先取得攪珠結果';
                 error.style.display = 'block';
                 return;
             }
-            
+
             // 重置狀態
             predictButton.disabled = true;
             error.style.display = 'none';
             loading.style.display = 'flex';
             document.getElementById('loadingText').textContent = '正在分析並預測下一期號碼...';
-            
+
             try {
                 // 使用所有歷史數據進行預測
                 const response = await fetch('/api/lottery/analyze', {
@@ -1193,9 +1205,9 @@
                         weights: optimizedWeights // 如果進行了迭代驗證，使用優化後的權重
                     })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.success) {
                     displayLatestPrediction(data.data, currentResults[0]);
                 } else {
@@ -1212,15 +1224,15 @@
 
         function displayLatestPrediction(analysisData, latestResult) {
             const container = document.getElementById('resultsContainer');
-            
+
             // 獲取最新期數
             const latestPeriod = latestResult.periodNumber;
-            
+
             // 使用共享的期數解析函數（用於計算下一期，不需要轉換年份，失敗時返回null）
             const parsePeriod = (periodStr) => {
                 return parsePeriodNumber(periodStr, { convertYear: false, returnNull: true });
             };
-            
+
             const currentPeriod = parsePeriod(latestPeriod);
             let nextPeriodStr = '下一期';
             if (currentPeriod) {
@@ -1231,9 +1243,9 @@
                     nextPeriodStr = `${currentPeriod.year}${String(nextPeriod).padStart(3, '0')}`;
                 }
             }
-            
+
             let html = '';
-            
+
             // 首先顯示最終預測的6個號碼（如果有的話）
             if (analysisData.predictedNumbers && analysisData.predictedNumbers.length > 0) {
                 html += `
@@ -1249,7 +1261,7 @@
                         </p>
                         <div style="background: rgba(255, 255, 255, 0.98); padding: 25px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);">
                             <div style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin: 25px 0; align-items: center;">`;
-                
+
                 // 顯示預測的6個號碼
                 analysisData.predictedNumbers.forEach((num, index) => {
                     html += `
@@ -1270,7 +1282,7 @@
                             transition: transform 0.3s ease;
                         " onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">${num}</div>`;
                 });
-                
+
                 html += `
                             </div>
                             <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 10px; border-left: 4px solid #667eea;">
@@ -1298,7 +1310,7 @@
                     </div>
                 </div>`;
             }
-            
+
             html += `
                 <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 20px; border-radius: 15px; margin-bottom: 20px; color: white; text-align: center; box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);">
                     <h2 style="margin: 0 0 10px 0; font-size: 1.8em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">🎯 最新預測</h2>
@@ -1312,22 +1324,22 @@
                     </h3>
                     <div class="prediction-cards" style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-bottom: 30px;">
             `;
-            
+
             // 顯示前 15 名號碼（根據最新分析結果）
             analysisData.topNumbers.forEach((item, index) => {
                 const rank = index + 1;
                 const size = rank <= 3 ? '35px' : rank <= 5 ? '28px' : '22px';
                 const isPredicted = analysisData.predictedNumbers && analysisData.predictedNumbers.includes(item.number);
                 const bgColor = isPredicted ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' :
-                                rank === 1 ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' :
-                                rank === 2 ? 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' :
-                                rank === 3 ? 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' :
+                    rank === 1 ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' :
+                        rank === 2 ? 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' :
+                            rank === 3 ? 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' :
                                 rank <= 5 ? 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' :
-                                'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-                
+                                    'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+
                 const borderStyle = isPredicted ? '4px solid #ffd700' : (rank <= 3 ? '3px solid #fff' : '2px solid #fff');
                 const shadowStyle = isPredicted ? '0 8px 30px rgba(0, 0, 0, 0.4)' : (rank <= 3 ? '0 6px 25px rgba(0, 0, 0, 0.3)' : '0 4px 15px rgba(0, 0, 0, 0.2)');
-                
+
                 html += `
                     <div class="prediction-card" style="
                         background: ${bgColor};
@@ -1352,7 +1364,7 @@
                     </div>
                 `;
             });
-            
+
             html += `
                     </div>
                 </div>
@@ -1374,7 +1386,7 @@
                             </thead>
                             <tbody>
             `;
-            
+
             analysisData.topNumbers.forEach((item, index) => {
                 html += `
                     <tr>
@@ -1388,14 +1400,14 @@
                     </tr>
                 `;
             });
-            
+
             html += `
                             </tbody>
                         </table>
                     </div>
                 </div>
             `;
-            
+
             // 添加複式投注建議（多個選項）
             if (analysisData.compoundBetSuggestions && analysisData.compoundBetSuggestions.length > 0) {
                 html += `
@@ -1409,12 +1421,12 @@
                         </p>
                     </div>
                 `;
-                
+
                 // 顯示每個選項
                 analysisData.compoundBetSuggestions.forEach((suggestion, suggestionIndex) => {
                     const isExpanded = suggestionIndex === 0; // 預設展開第一個選項
                     const cardId = `compound-bet-${suggestionIndex}`;
-                    
+
                     html += `
                     <div style="background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 10px; margin-bottom: 15px; border-left: 4px solid #667eea;">
                         <div id="header-${cardId}" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; cursor: pointer;" 
@@ -1441,7 +1453,7 @@
                                 <p style="color: #333; font-size: 14px; margin-bottom: 10px; font-weight: 600;">選取的${suggestion.numberCount}個號碼：</p>
                                 <div style="display: flex; flex-wrap: wrap; gap: 8px;">
                     `;
-                    
+
                     suggestion.numbers.forEach((num, index) => {
                         html += `
                             <span class="number-badge" style="
@@ -1454,7 +1466,7 @@
                             ">${String(num).padStart(2, '0')}</span>
                         `;
                     });
-                    
+
                     html += `
                                 </div>
                             </div>
@@ -1465,7 +1477,7 @@
                                 </p>
                                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; font-size: 14px;">
                     `;
-                    
+
                     // 顯示投注組合（限制顯示前100注，避免頁面過長）
                     const displayBets = suggestion.bets.slice(0, 100);
                     displayBets.forEach((bet, index) => {
@@ -1482,7 +1494,7 @@
                             </div>
                         `;
                     });
-                    
+
                     if (suggestion.bets.length > 100) {
                         html += `
                             <div style="grid-column: 1 / -1; text-align: center; padding: 15px; color: #666; font-style: italic;">
@@ -1490,7 +1502,7 @@
                             </div>
                         `;
                     }
-                    
+
                     html += `
                                 </div>
                             </div>
@@ -1498,12 +1510,12 @@
                     </div>
                     `;
                 });
-                
+
                 html += `
                 </div>
                 `;
             }
-            
+
             // 添加 $100 複式投注建議
             if (analysisData.compoundBetSuggestion100) {
                 const suggestion100 = analysisData.compoundBetSuggestion100;
@@ -1530,7 +1542,7 @@
                             <p style="color: #333; font-size: 14px; margin-bottom: 10px; font-weight: 600;">包含的15個號碼：</p>
                             <div style="display: flex; flex-wrap: wrap; gap: 8px;">
                 `;
-                
+
                 suggestion100.numbers.forEach((num, index) => {
                     const isCore = index < 8;
                     html += `
@@ -1544,7 +1556,7 @@
                         ">${String(num).padStart(2, '0')}${isCore ? ' ⭐' : ''}</span>
                     `;
                 });
-                
+
                 html += `
                             </div>
                             <p style="color: #999; font-size: 12px; margin-top: 10px; font-style: italic;">
@@ -1559,7 +1571,7 @@
                         </p>
                         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; font-size: 14px;">
                 `;
-                
+
                 // 顯示所有投注組合（$100 建議只有10注，全部顯示）
                 suggestion100.bets.forEach((bet, index) => {
                     html += `
@@ -1575,14 +1587,14 @@
                         </div>
                     `;
                 });
-                
+
                 html += `
                         </div>
                     </div>
                 </div>
                 `;
             }
-            
+
             html += `
                 <div style="margin-top: 30px; background: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;">
                     <h3 style="color: #333; margin-bottom: 15px;">💡 預測說明</h3>
@@ -1597,10 +1609,10 @@
                     </p>
                 </div>
             `;
-            
+
             container.innerHTML = html;
         }
-        
+
         // 切換複式投注選項的展開/收起
         function toggleCompoundBet(cardId) {
             const card = document.getElementById(cardId);
@@ -1614,5 +1626,5 @@
         }
     </script>
 </body>
-</html>
 
+</html>
