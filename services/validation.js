@@ -579,9 +579,10 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
  * @param {Array} allResults - 所有攪珠結果（已按日期排序，最新的在前）
  * @param {number} lookbackPeriods - 往前推的期數（預設100）
  * @param {number} maxRetries - 最大重試次數（如果平均命中數未達標，預設50次）
+ * @param {Function} progressCallback - 進度回調函數 (progress, message) => void
  * @returns {Object} 驗證結果
  */
-function iterativeValidation(allResults, lookbackPeriods = 100, maxRetries = 50) {
+function iterativeValidation(allResults, lookbackPeriods = 100, maxRetries = 50, progressCallback = null) {
   if (!analyzeNumbers) {
     throw new Error('analyzeNumbers 函數未設置。請先調用 setAnalyzeNumbers()');
   }
@@ -666,7 +667,40 @@ function iterativeValidation(allResults, lookbackPeriods = 100, maxRetries = 50)
   if (retryCount === 0) {
     // 增加測試期數以提高選擇準確性（使用前100期數據）
     const testPeriods = Math.min(100, startIndex);
+    const totalWeightSets = initialWeightSets.length;
+    let currentWeightSetIndex = 0;
+    
+    if (progressCallback && typeof progressCallback === 'function') {
+      try {
+        progressCallback({
+          progress: 0,
+          stage: 'weightTesting',
+          message: `開始測試 ${totalWeightSets} 組初始權重配置...`,
+          weightSetIndex: 0,
+          totalWeightSets: totalWeightSets
+        });
+      } catch (err) {
+        console.error('進度回調函數執行錯誤:', err);
+      }
+    }
+    
     for (const testWeights of initialWeightSets) {
+      currentWeightSetIndex++;
+      const weightTestProgress = Math.round((currentWeightSetIndex / totalWeightSets) * 100);
+      
+      if (progressCallback && typeof progressCallback === 'function') {
+        try {
+          progressCallback({
+            progress: weightTestProgress,
+            stage: 'weightTesting',
+            message: `測試權重配置 ${currentWeightSetIndex}/${totalWeightSets}...`,
+            weightSetIndex: currentWeightSetIndex,
+            totalWeightSets: totalWeightSets
+          });
+        } catch (err) {
+          console.error('進度回調函數執行錯誤:', err);
+        }
+      }
       let testAccuracy = 0;
       let totalHitCount = 0;
       let testCount = 0;
@@ -794,7 +828,23 @@ function iterativeValidation(allResults, lookbackPeriods = 100, maxRetries = 50)
       // 每處理10期輸出一次進度（減少日誌輸出）
       if (processedPeriods % 10 === 0 || processedPeriods === 1) {
         const progress = Math.round((processedPeriods / totalPeriods) * 100);
-        console.log(`迭代驗證進度: ${processedPeriods}/${totalPeriods} (${progress}%) - 重試 ${retryCount + 1}/${maxRetries}`);
+        const message = `迭代驗證進度: ${processedPeriods}/${totalPeriods} (${progress}%) - 重試 ${retryCount + 1}/${maxRetries}`;
+        console.log(message);
+        // 調用進度回調函數
+        if (progressCallback && typeof progressCallback === 'function') {
+          try {
+            progressCallback({
+              progress: progress,
+              processedPeriods: processedPeriods,
+              totalPeriods: totalPeriods,
+              retryCount: retryCount + 1,
+              maxRetries: maxRetries,
+              message: message
+            });
+          } catch (err) {
+            console.error('進度回調函數執行錯誤:', err);
+          }
+        }
       }
       const trainingData = allResults.slice(i); // 從當前期數往前的所有資料
       const targetResult = allResults[i - 1]; // 要預測的下一期
@@ -1260,10 +1310,42 @@ function iterativeValidation(allResults, lookbackPeriods = 100, maxRetries = 50)
     if (retryCount < maxRetries && !meetsHitCountTarget) {
       retryCount++;
       const progress = Math.round((retryCount / maxRetries) * 100);
-      console.log(`平均命中數 ${averageHitCount.toFixed(2)} 未達標（目標：${targetAverageHitCount}），進行第 ${retryCount}/${maxRetries} 次重試 (${progress}%)...`);
+      const message = `平均命中數 ${averageHitCount.toFixed(2)} 未達標（目標：${targetAverageHitCount}），進行第 ${retryCount}/${maxRetries} 次重試 (${progress}%)...`;
+      console.log(message);
+      // 發送重試進度更新
+      if (progressCallback && typeof progressCallback === 'function') {
+        try {
+          progressCallback({
+            progress: Math.min(95, Math.round((retryCount / maxRetries) * 90)), // 重試階段最多到90%
+            stage: 'retrying',
+            message: message,
+            retryCount: retryCount,
+            maxRetries: maxRetries,
+            averageHitCount: averageHitCount.toFixed(2),
+            targetAverageHitCount: targetAverageHitCount
+          });
+        } catch (err) {
+          console.error('進度回調函數執行錯誤:', err);
+        }
+      }
       continue;
     } else {
       // 達到最大重試次數或已達標，退出循環
+      // 發送驗證階段完成進度更新
+      if (progressCallback && typeof progressCallback === 'function') {
+        try {
+          progressCallback({
+            progress: 95,
+            stage: 'validationComplete',
+            message: '驗證階段完成，正在生成最終預測...',
+            retryCount: retryCount,
+            maxRetries: maxRetries,
+            meetsTarget: meetsHitCountTarget
+          });
+        } catch (err) {
+          console.error('進度回調函數執行錯誤:', err);
+        }
+      }
       break;
     }
   }
@@ -1315,6 +1397,20 @@ function iterativeValidation(allResults, lookbackPeriods = 100, maxRetries = 50)
 
   // 生成未來一期的預測（使用最終權重和所有歷史數據）
   let latestPeriodPrediction = null;
+  
+  // 發送開始生成最終預測的進度更新
+  if (progressCallback && typeof progressCallback === 'function') {
+    try {
+      progressCallback({
+        progress: 96,
+        stage: 'generatingPrediction',
+        message: '正在生成最終預測號碼...'
+      });
+    } catch (err) {
+      console.error('進度回調函數執行錯誤:', err);
+    }
+  }
+  
   try {
     // 使用所有歷史數據進行分析（不排除任何期數）
     const allTrainingData = allResults;
