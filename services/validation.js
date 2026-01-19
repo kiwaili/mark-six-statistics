@@ -582,7 +582,7 @@ function adjustWeights(currentWeights, comparison, analysisDetails, topNumbers, 
  * @param {Function} progressCallback - 進度回調函數 (progress, message) => void
  * @returns {Object} 驗證結果
  */
-function iterativeValidation(allResults, lookbackPeriods = 100, maxRetries = 50, progressCallback = null) {
+async function iterativeValidation(allResults, lookbackPeriods = 100, maxRetries = 50, progressCallback = null) {
   if (!analyzeNumbers) {
     throw new Error('analyzeNumbers 函數未設置。請先調用 setAnalyzeNumbers()');
   }
@@ -672,6 +672,7 @@ function iterativeValidation(allResults, lookbackPeriods = 100, maxRetries = 50,
     
     if (progressCallback && typeof progressCallback === 'function') {
       try {
+        // 進度回調內部會使用 setImmediate，所以這裡直接調用即可
         progressCallback({
           progress: 0,
           stage: 'weightTesting',
@@ -697,6 +698,8 @@ function iterativeValidation(allResults, lookbackPeriods = 100, maxRetries = 50,
             weightSetIndex: currentWeightSetIndex,
             totalWeightSets: totalWeightSets
           });
+          // 讓出控制權
+          await new Promise(resolve => setImmediate(resolve));
         } catch (err) {
           console.error('進度回調函數執行錯誤:', err);
         }
@@ -826,25 +829,39 @@ function iterativeValidation(allResults, lookbackPeriods = 100, maxRetries = 50,
     for (let i = startIndex; i > 0; i--) {
       processedPeriods++;
       // 每處理10期輸出一次進度（減少日誌輸出）
-      if (processedPeriods % 10 === 0 || processedPeriods === 1) {
-        const progress = Math.round((processedPeriods / totalPeriods) * 100);
+      // 計算進度：重試階段佔90%，當前重試的進度 = 基礎進度(重試數*90/maxRetries) + 當前期數進度(90/maxRetries/totalPeriods*processedPeriods)
+      const baseProgress = Math.round((retryCount / maxRetries) * 90);
+      const currentRetryProgress = Math.round((processedPeriods / totalPeriods) * (90 / maxRetries));
+      const progress = Math.min(95, baseProgress + currentRetryProgress);
+      
+      // 每處理10期或第一期或最後一期時發送進度更新
+      if (processedPeriods % 10 === 0 || processedPeriods === 1 || processedPeriods === totalPeriods) {
         const message = `迭代驗證進度: ${processedPeriods}/${totalPeriods} (${progress}%) - 重試 ${retryCount + 1}/${maxRetries}`;
         console.log(message);
         // 調用進度回調函數
         if (progressCallback && typeof progressCallback === 'function') {
           try {
-            progressCallback({
+            const progressData = {
               progress: progress,
               processedPeriods: processedPeriods,
               totalPeriods: totalPeriods,
               retryCount: retryCount + 1,
               maxRetries: maxRetries,
-              message: message
-            });
+              message: message,
+              stage: 'validating'
+            };
+            progressCallback(progressData);
+            // 讓出控制權，確保進度更新能夠發送
+            await new Promise(resolve => setImmediate(resolve));
           } catch (err) {
             console.error('進度回調函數執行錯誤:', err);
           }
         }
+      }
+      
+      // 每處理5期讓出一次控制權，確保進度更新能夠實時發送
+      if (processedPeriods % 5 === 0) {
+        await new Promise(resolve => setImmediate(resolve));
       }
       const trainingData = allResults.slice(i); // 從當前期數往前的所有資料
       const targetResult = allResults[i - 1]; // 要預測的下一期
@@ -1324,6 +1341,8 @@ function iterativeValidation(allResults, lookbackPeriods = 100, maxRetries = 50,
             averageHitCount: averageHitCount.toFixed(2),
             targetAverageHitCount: targetAverageHitCount
           });
+          // 讓出控制權
+          await new Promise(resolve => setImmediate(resolve));
         } catch (err) {
           console.error('進度回調函數執行錯誤:', err);
         }
@@ -1342,6 +1361,8 @@ function iterativeValidation(allResults, lookbackPeriods = 100, maxRetries = 50,
             maxRetries: maxRetries,
             meetsTarget: meetsHitCountTarget
           });
+          // 讓出控制權
+          await new Promise(resolve => setImmediate(resolve));
         } catch (err) {
           console.error('進度回調函數執行錯誤:', err);
         }
@@ -1406,6 +1427,8 @@ function iterativeValidation(allResults, lookbackPeriods = 100, maxRetries = 50,
         stage: 'generatingPrediction',
         message: '正在生成最終預測號碼...'
       });
+      // 讓出控制權
+      await new Promise(resolve => setImmediate(resolve));
     } catch (err) {
       console.error('進度回調函數執行錯誤:', err);
     }

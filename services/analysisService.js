@@ -403,10 +403,10 @@ if (typeof setImmediate !== 'undefined') {
 }
 
 // 包裝 iterativeValidation 以確保 analyzeNumbers 已設置
-const wrappedIterativeValidation = function (allResults, lookbackPeriods = 100) {
+const wrappedIterativeValidation = async function (allResults, lookbackPeriods = 100, maxRetries = 50, progressCallback = null) {
   // 確保 analyzeNumbers 已設置（如果延遲設置還沒執行，立即設置）
   setAnalyzeNumbers(analyzeNumbers);
-  return iterativeValidation(allResults, lookbackPeriods);
+  return await iterativeValidation(allResults, lookbackPeriods, maxRetries, progressCallback);
 };
 
 module.exports = {
