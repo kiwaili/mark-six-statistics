@@ -26,7 +26,7 @@ function scoreGapPatterns(gaps, fibonacciSequence) {
   let score = 0;
   let strongSignals = 0;
   let gapMatches = 0;
-  
+
   gaps.forEach(gap => {
     fibonacciSequence.forEach(fib => {
       const diff = Math.abs(gap - fib);
@@ -44,13 +44,13 @@ function scoreGapPatterns(gaps, fibonacciSequence) {
       }
     });
   });
-  
+
   // 如果有多個間隔匹配，給予額外加分
   if (gapMatches >= 2) {
     score += 25;
     strongSignals++;
   }
-  
+
   return { score, strongSignals };
 }
 
@@ -67,10 +67,10 @@ function scoreGapPatterns(gaps, fibonacciSequence) {
 function scoreGoldenRatioAnalysis(appearances, gaps, currentGap, filteredLength, goldenRatio, goldenRatioInverse) {
   let score = 0;
   let strongSignals = 0;
-  
+
   if (appearances.length >= 2 && gaps.length > 0) {
     const lastGap = gaps[gaps.length - 1];
-    
+
     // 黃金比例預測
     const predictedNextGap = Math.round(lastGap * goldenRatio);
     const diff1 = Math.abs(currentGap - predictedNextGap);
@@ -85,7 +85,7 @@ function scoreGoldenRatioAnalysis(appearances, gaps, currentGap, filteredLength,
         strongSignals++;
       }
     }
-    
+
     // 反向黃金比例
     const predictedNextGapInverse = Math.round(lastGap * goldenRatioInverse);
     const diff2 = Math.abs(currentGap - predictedNextGapInverse);
@@ -100,7 +100,7 @@ function scoreGoldenRatioAnalysis(appearances, gaps, currentGap, filteredLength,
         strongSignals++;
       }
     }
-    
+
     // 檢查間隔序列是否符合斐波那契比例
     if (gaps.length >= 2) {
       const lastTwoGaps = gaps.slice(-2);
@@ -111,7 +111,7 @@ function scoreGoldenRatioAnalysis(appearances, gaps, currentGap, filteredLength,
       }
     }
   }
-  
+
   return { score, strongSignals };
 }
 
@@ -126,11 +126,11 @@ function scorePositionRelationships(num, filtered, fibonacciSet) {
   let score = 0;
   let strongSignals = 0;
   let positionMatches = 0;
-  
+
   filtered.forEach(period => {
     const sortedNumbers = [...period.numbers].sort((a, b) => a - b);
     const numIndex = sortedNumbers.indexOf(num);
-    
+
     if (numIndex !== -1) {
       // 檢查相鄰號碼的差值是否為斐波那契數
       if (numIndex > 0) {
@@ -147,19 +147,19 @@ function scorePositionRelationships(num, filtered, fibonacciSet) {
           positionMatches++;
         }
       }
-      
+
       // 檢查號碼在排序後的位置是否為斐波那契數
       if (fibonacciSet.has(numIndex + 1)) {
         score += 12;
       }
     }
   });
-  
+
   if (positionMatches >= 3) {
     score += 20; // 多個位置匹配給予額外加分
     strongSignals++;
   }
-  
+
   return { score, strongSignals };
 }
 
@@ -178,7 +178,7 @@ function scorePositionRelationships(num, filtered, fibonacciSet) {
 function scorePeriodicityAnalysis(num, appearances, gaps, gapSinceLast, filteredLength, fibonacciSequence, goldenRatio, fibonacciSet) {
   let score = 0;
   let strongSignals = 0;
-  
+
   if (appearances.length > 0) {
     let periodMatches = 0;
     fibonacciSequence.forEach(fib => {
@@ -196,13 +196,13 @@ function scorePeriodicityAnalysis(num, appearances, gaps, gapSinceLast, filtered
         }
       }
     });
-    
+
     // 如果間隔接近多個斐波那契數，給予額外加分
     if (periodMatches >= 2) {
       score += 30;
       strongSignals++;
     }
-    
+
     // 使用黃金比例預測下一個出現時間
     if (appearances.length >= 2 && gaps.length > 0) {
       const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length;
@@ -221,7 +221,7 @@ function scorePeriodicityAnalysis(num, appearances, gaps, gapSinceLast, filtered
       score += 20; // 增加未出現但為斐波那契數的分數
     }
   }
-  
+
   return { score, strongSignals };
 }
 
@@ -251,11 +251,11 @@ function scoreStrongSignalBonus(strongSignals) {
 function scoreRecentPeriodFibonacciPattern(num, filtered, fibonacciSequence) {
   let score = 0;
   let strongSignals = 0;
-  
+
   if (filtered.length >= 5) {
     const recentPeriods = filtered.slice(0, 10); // 最近10期（filtered已按日期排序，最新的在前）
     let recentMatches = 0;
-    
+
     recentPeriods.forEach((period, idx) => {
       if (period.numbers.includes(num)) {
         // 檢查在最近期數中的出現是否符合斐波那契模式
@@ -268,7 +268,7 @@ function scoreRecentPeriodFibonacciPattern(num, filtered, fibonacciSequence) {
         });
       }
     });
-    
+
     if (recentMatches > 0) {
       score += recentMatches * 15;
       if (recentMatches >= 2) {
@@ -276,7 +276,7 @@ function scoreRecentPeriodFibonacciPattern(num, filtered, fibonacciSequence) {
       }
     }
   }
-  
+
   return { score, strongSignals };
 }
 
@@ -290,41 +290,41 @@ function scoreRecentPeriodFibonacciPattern(num, filtered, fibonacciSequence) {
  */
 function calculateFibonacciScore(allNumbers, excludePeriodNumbers = null, filteredNumbers = null) {
   const fibonacciScore = {};
-  
+
   // 初始化所有可能的號碼 (1-49)
   for (let i = 1; i <= 49; i++) {
     fibonacciScore[i] = 0;
   }
-  
+
   // 生成斐波那契數列（直到49以內）
   const fibonacciSequence = [1, 1, 2, 3, 5, 8, 13, 21, 34];
   const fibonacciSet = new Set(fibonacciSequence);
-  
+
   // 黃金比例
   const goldenRatio = 1.618033988749895;
   const goldenRatioInverse = 0.618033988749895;
-  
+
   // 使用預過濾的數組（如果提供），否則過濾
-  const filtered = filteredNumbers || (excludePeriodNumbers 
+  const filtered = filteredNumbers || (excludePeriodNumbers
     ? allNumbers.filter(period => !excludePeriodNumbers.has(period.periodNumber))
     : allNumbers);
-  
+
   if (filtered.length === 0) {
     return { scores: fibonacciScore };
   }
-  
+
   // 為每個號碼計算斐波那契相關分數
   for (let num = 1; num <= 49; num++) {
     let score = 0;
     let strongSignals = 0; // 強信號計數器
-    
+
     // 1. 檢查號碼本身是否為斐波那契數
     const membershipResult = scoreSequenceMembership(num, fibonacciSet);
     score += membershipResult.score;
     if (membershipResult.strongSignal) {
       strongSignals++;
     }
-    
+
     // 2. 分析該號碼出現的間隔模式
     const appearances = [];
     filtered.forEach((period, index) => {
@@ -332,7 +332,7 @@ function calculateFibonacciScore(allNumbers, excludePeriodNumbers = null, filter
         appearances.push(index);
       }
     });
-    
+
     // 計算間隔
     const gaps = [];
     if (appearances.length > 1) {
@@ -340,13 +340,13 @@ function calculateFibonacciScore(allNumbers, excludePeriodNumbers = null, filter
         gaps.push(appearances[i] - appearances[i - 1]);
       }
     }
-    
+
     // 3. 間隔模式分析
     if (appearances.length > 1) {
       const gapResult = scoreGapPatterns(gaps, fibonacciSequence);
       score += gapResult.score;
       strongSignals += gapResult.strongSignals;
-      
+
       // 4. 黃金比例分析
       const currentGap = filtered.length - 1 - appearances[appearances.length - 1];
       const goldenRatioResult = scoreGoldenRatioAnalysis(
@@ -355,35 +355,35 @@ function calculateFibonacciScore(allNumbers, excludePeriodNumbers = null, filter
       score += goldenRatioResult.score;
       strongSignals += goldenRatioResult.strongSignals;
     }
-    
+
     // 5. 位置關係分析
     const positionResult = scorePositionRelationships(num, filtered, fibonacciSet);
     score += positionResult.score;
     strongSignals += positionResult.strongSignals;
-    
+
     // 6. 週期性分析
-    const gapSinceLast = appearances.length > 0 
-      ? filtered.length - 1 - appearances[appearances.length - 1] 
+    const gapSinceLast = appearances.length > 0
+      ? filtered.length - 1 - appearances[appearances.length - 1]
       : 0;
     const periodicityResult = scorePeriodicityAnalysis(
-      num, appearances, gaps, gapSinceLast, filtered.length, 
+      num, appearances, gaps, gapSinceLast, filtered.length,
       fibonacciSequence, goldenRatio, fibonacciSet
     );
     score += periodicityResult.score;
     strongSignals += periodicityResult.strongSignals;
-    
+
     // 7. 強信號加成
     score += scoreStrongSignalBonus(strongSignals);
-    
+
     // 9. 最近期數的斐波那契模式分析
     const recentResult = scoreRecentPeriodFibonacciPattern(num, filtered, fibonacciSequence);
     score += recentResult.score;
     strongSignals += recentResult.strongSignals;
-    
+
     // 確保分數範圍，但允許更高的最大值以產生更大的差異
     fibonacciScore[num] = Math.min(200, Math.max(0, score)); // 提高上限到200以產生更大差異
   }
-  
+
   return {
     scores: fibonacciScore,
     fibonacciSequence: fibonacciSequence,

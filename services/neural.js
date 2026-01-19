@@ -33,7 +33,7 @@ function sigmoidDerivative(x) {
 function initializeWeights(inputSize, outputSize) {
   const weights = [];
   const limit = Math.sqrt(6 / (inputSize + outputSize));
-  
+
   for (let i = 0; i < inputSize; i++) {
     weights[i] = [];
     for (let j = 0; j < outputSize; j++) {
@@ -41,7 +41,7 @@ function initializeWeights(inputSize, outputSize) {
       weights[i][j] = (Math.random() * 2 - 1) * limit;
     }
   }
-  
+
   return weights;
 }
 
@@ -81,28 +81,28 @@ function matrixVectorMultiply(a, b) {
 function forwardPropagation(input, network) {
   const activations = [input];
   const zValues = [];
-  
+
   let currentInput = input;
-  
+
   // 遍歷每一層
   for (let layer = 0; layer < network.weights.length; layer++) {
     // 計算加權和
     const z = matrixVectorMultiply(network.weights[layer], currentInput);
-    
+
     // 加上偏置
     for (let i = 0; i < z.length; i++) {
       z[i] += network.biases[layer][i];
     }
-    
+
     zValues.push(z);
-    
+
     // 應用激活函數
     const activation = z.map(sigmoid);
     activations.push(activation);
-    
+
     currentInput = activation;
   }
-  
+
   return {
     activations,
     zValues
@@ -121,21 +121,21 @@ function forwardPropagation(input, network) {
 function backPropagation(input, target, network, forwardResult, learningRate = 0.01) {
   const { activations, zValues } = forwardResult;
   const output = activations[activations.length - 1];
-  
+
   // 計算輸出層誤差
   let errors = [];
   for (let i = 0; i < output.length; i++) {
     errors[i] = (target[i] - output[i]) * sigmoidDerivative(output[i]);
   }
-  
+
   // 從輸出層向輸入層反向傳播
   const updatedWeights = network.weights.map(w => w.map(row => [...row]));
   const updatedBiases = network.biases.map(b => [...b]);
-  
+
   for (let layer = network.weights.length - 1; layer >= 0; layer--) {
     const currentActivation = activations[layer];
     const nextActivation = activations[layer + 1];
-    
+
     // 更新權重和偏置
     for (let i = 0; i < network.weights[layer].length; i++) {
       for (let j = 0; j < network.weights[layer][i].length; j++) {
@@ -143,7 +143,7 @@ function backPropagation(input, target, network, forwardResult, learningRate = 0
       }
       updatedBiases[layer][i] += learningRate * errors[i];
     }
-    
+
     // 計算前一層的誤差（如果不是輸入層）
     if (layer > 0) {
       const newErrors = [];
@@ -157,7 +157,7 @@ function backPropagation(input, target, network, forwardResult, learningRate = 0
       errors = newErrors;
     }
   }
-  
+
   return {
     weights: updatedWeights,
     biases: updatedBiases
@@ -174,18 +174,18 @@ function prepareInputFeatures(historicalResults, lookbackPeriods = 10) {
   if (!historicalResults || historicalResults.length < lookbackPeriods) {
     return [];
   }
-  
+
   const features = [];
-  
+
   // 從最新期開始，往前取 lookbackPeriods 期
   for (let i = 0; i < historicalResults.length - lookbackPeriods; i++) {
     const feature = [];
-    
+
     // 提取最近 lookbackPeriods 期的號碼特徵
     for (let j = 0; j < lookbackPeriods; j++) {
       const result = historicalResults[i + j];
       const numbers = result.numbers || [];
-      
+
       // 為每個號碼（1-49）創建二進制特徵（是否出現）
       const numberVector = Array(49).fill(0);
       numbers.forEach(num => {
@@ -193,10 +193,10 @@ function prepareInputFeatures(historicalResults, lookbackPeriods = 10) {
           numberVector[num - 1] = 1;
         }
       });
-      
+
       feature.push(...numberVector);
     }
-    
+
     // 添加統計特徵
     const recentNumbers = [];
     for (let j = 0; j < lookbackPeriods; j++) {
@@ -205,7 +205,7 @@ function prepareInputFeatures(historicalResults, lookbackPeriods = 10) {
         recentNumbers.push(...result.numbers);
       }
     }
-    
+
     // 頻率特徵（每個號碼在最近 lookbackPeriods 期出現的次數，正規化到 0-1）
     const frequencyVector = Array(49).fill(0);
     recentNumbers.forEach(num => {
@@ -216,10 +216,10 @@ function prepareInputFeatures(historicalResults, lookbackPeriods = 10) {
     const maxFreq = Math.max(...frequencyVector, 1);
     const normalizedFreq = frequencyVector.map(f => f / maxFreq);
     feature.push(...normalizedFreq);
-    
+
     features.push(feature);
   }
-  
+
   return features;
 }
 
@@ -231,13 +231,13 @@ function prepareInputFeatures(historicalResults, lookbackPeriods = 10) {
 function prepareOutputLabels(targetResult) {
   const labels = Array(49).fill(0);
   const numbers = targetResult.numbers || [];
-  
+
   numbers.forEach(num => {
     if (num >= 1 && num <= 49) {
       labels[num - 1] = 1;
     }
   });
-  
+
   return labels;
 }
 
@@ -256,7 +256,7 @@ function createNeuralNetwork(inputSize, hiddenLayers = [64, 32], outputSize = 49
     hiddenLayers,
     outputSize
   };
-  
+
   // 創建輸入層到第一個隱藏層的權重
   let currentSize = inputSize;
   for (let i = 0; i < hiddenLayers.length; i++) {
@@ -265,11 +265,11 @@ function createNeuralNetwork(inputSize, hiddenLayers = [64, 32], outputSize = 49
     network.biases.push(initializeBiases(nextSize));
     currentSize = nextSize;
   }
-  
+
   // 創建最後一個隱藏層到輸出層的權重
   network.weights.push(initializeWeights(outputSize, currentSize));
   network.biases.push(initializeBiases(outputSize));
-  
+
   return network;
 }
 
@@ -290,63 +290,63 @@ function trainNeuralNetwork(network, inputs, targets, options = {}) {
     learningRate = 0.01,
     batchSize = 10
   } = options;
-  
+
   if (inputs.length !== targets.length) {
     throw new Error('輸入和目標的數量必須相同');
   }
-  
+
   const trainingHistory = {
     losses: [],
     accuracies: []
   };
-  
+
   let currentNetwork = {
     weights: network.weights.map(w => w.map(row => [...row])),
     biases: network.biases.map(b => [...b])
   };
-  
+
   // 訓練多個epoch
   for (let epoch = 0; epoch < epochs; epoch++) {
     let totalLoss = 0;
     let correctPredictions = 0;
-    
+
     // 隨機打亂數據
     const indices = Array.from({ length: inputs.length }, (_, i) => i);
     for (let i = indices.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [indices[i], indices[j]] = [indices[j], indices[i]];
     }
-    
+
     // 批次訓練
     for (let batch = 0; batch < Math.ceil(inputs.length / batchSize); batch++) {
       const batchIndices = indices.slice(
         batch * batchSize,
         Math.min((batch + 1) * batchSize, inputs.length)
       );
-      
+
       // 累積梯度
-      const gradientWeights = currentNetwork.weights.map(w => 
+      const gradientWeights = currentNetwork.weights.map(w =>
         w.map(row => Array(row.length).fill(0))
       );
-      const gradientBiases = currentNetwork.biases.map(b => 
+      const gradientBiases = currentNetwork.biases.map(b =>
         Array(b.length).fill(0)
       );
-      
+
       // 計算批次梯度
       for (const idx of batchIndices) {
         const input = inputs[idx];
         const target = targets[idx];
-        
+
         const forwardResult = forwardPropagation(input, currentNetwork);
         const output = forwardResult.activations[forwardResult.activations.length - 1];
-        
+
         // 計算損失（均方誤差）
         let loss = 0;
         for (let i = 0; i < output.length; i++) {
           loss += Math.pow(target[i] - output[i], 2);
         }
         totalLoss += loss / output.length;
-        
+
         // 計算準確率（預測前6個最高概率的號碼，看是否包含實際號碼）
         const predictedIndices = output
           .map((val, idx) => ({ val, idx }))
@@ -357,30 +357,30 @@ function trainNeuralNetwork(network, inputs, targets, options = {}) {
           .map((val, idx) => ({ val, idx }))
           .filter(item => item.val > 0.5)
           .map(item => item.idx);
-        
+
         const hits = predictedIndices.filter(idx => actualIndices.includes(idx)).length;
         if (hits >= 3) {
           correctPredictions++;
         }
-        
+
         // 反向傳播
         const updated = backPropagation(input, target, currentNetwork, forwardResult, learningRate);
-        
+
         // 累積梯度
         for (let layer = 0; layer < currentNetwork.weights.length; layer++) {
           for (let i = 0; i < currentNetwork.weights[layer].length; i++) {
             for (let j = 0; j < currentNetwork.weights[layer][i].length; j++) {
-              gradientWeights[layer][i][j] += 
+              gradientWeights[layer][i][j] +=
                 (updated.weights[layer][i][j] - currentNetwork.weights[layer][i][j]) / batchIndices.length;
             }
           }
           for (let i = 0; i < currentNetwork.biases[layer].length; i++) {
-            gradientBiases[layer][i] += 
+            gradientBiases[layer][i] +=
               (updated.biases[layer][i] - currentNetwork.biases[layer][i]) / batchIndices.length;
           }
         }
       }
-      
+
       // 更新權重和偏置
       for (let layer = 0; layer < currentNetwork.weights.length; layer++) {
         for (let i = 0; i < currentNetwork.weights[layer].length; i++) {
@@ -393,13 +393,13 @@ function trainNeuralNetwork(network, inputs, targets, options = {}) {
         }
       }
     }
-    
+
     const avgLoss = totalLoss / inputs.length;
     const accuracy = correctPredictions / inputs.length;
-    
+
     trainingHistory.losses.push(avgLoss);
     trainingHistory.accuracies.push(accuracy);
-    
+
     // 減少日誌輸出以提高性能（只在最後一個epoch或每20個epoch輸出一次）
     if ((epoch + 1) % 20 === 0 || epoch === epochs - 1) {
       // 只在開發環境或需要調試時輸出
@@ -408,7 +408,7 @@ function trainNeuralNetwork(network, inputs, targets, options = {}) {
       }
     }
   }
-  
+
   return {
     network: currentNetwork,
     history: trainingHistory
@@ -424,13 +424,13 @@ function trainNeuralNetwork(network, inputs, targets, options = {}) {
 function predictWithNeuralNetwork(network, input) {
   const forwardResult = forwardPropagation(input, network);
   const output = forwardResult.activations[forwardResult.activations.length - 1];
-  
+
   // 將輸出轉換為號碼預測分數（1-49）
   const predictions = {};
   for (let i = 0; i < output.length; i++) {
     predictions[i + 1] = output[i];
   }
-  
+
   return {
     predictions,
     topNumbers: Object.entries(predictions)
@@ -455,27 +455,27 @@ function neuralNetworkAnalysis(historicalResults, lookbackPeriods = 10, options 
       error: '資料不足，無法進行神經網絡分析'
     };
   }
-  
+
   try {
     // 準備訓練數據（優化：限制數據量以提高速度）
     const maxTrainingSamples = options.maxTrainingSamples || 30; // 限制訓練樣本數量
     const limitedResults = historicalResults.slice(0, Math.min(maxTrainingSamples + lookbackPeriods, historicalResults.length));
-    
+
     const inputs = prepareInputFeatures(limitedResults, lookbackPeriods);
     const targets = [];
-    
+
     for (let i = 0; i < inputs.length; i++) {
       const targetIndex = i + lookbackPeriods;
       if (targetIndex < limitedResults.length) {
         targets.push(prepareOutputLabels(limitedResults[targetIndex]));
       }
     }
-    
+
     // 確保輸入和目標數量匹配
     const minLength = Math.min(inputs.length, targets.length);
     const trimmedInputs = inputs.slice(0, minLength);
     const trimmedTargets = targets.slice(0, minLength);
-    
+
     if (trimmedInputs.length < 10) {
       return {
         predictions: {},
@@ -484,31 +484,31 @@ function neuralNetworkAnalysis(historicalResults, lookbackPeriods = 10, options 
         error: '訓練數據不足（需要至少10個樣本）'
       };
     }
-    
+
     // 創建神經網絡（優化：使用較小的網絡以提高速度）
     const inputSize = trimmedInputs[0].length;
     // 使用較小的隱藏層以提高訓練速度
     const hiddenLayers = options.hiddenLayers || [32, 16]; // 從 [64, 32] 減少到 [32, 16]
     const network = createNeuralNetwork(inputSize, hiddenLayers, 49);
-    
+
     // 訓練神經網絡（使用較少的epoch以加快速度）
     const trainingOptions = {
       epochs: options.epochs || 15, // 默認減少到15
       learningRate: options.learningRate || 0.01,
       batchSize: options.batchSize || 5 // 默認減少批次大小
     };
-    
+
     const trainingResult = trainNeuralNetwork(network, trimmedInputs, trimmedTargets, trainingOptions);
-    
+
     // 使用最新的數據進行預測
     const latestInput = prepareInputFeatures(
       historicalResults.slice(0, lookbackPeriods + 1),
       lookbackPeriods
     );
-    
+
     if (latestInput.length > 0) {
       const prediction = predictWithNeuralNetwork(trainingResult.network, latestInput[0]);
-      
+
       return {
         predictions: prediction.predictions,
         topNumbers: prediction.topNumbers,

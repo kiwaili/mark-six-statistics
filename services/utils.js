@@ -10,11 +10,11 @@
  */
 function extractAllNumbers(results) {
   const allNumbers = [];
-  
+
   results.forEach(result => {
     if (result.numbers && result.numbers.length > 0) {
       let numberArray = [];
-      
+
       if (typeof result.numbers[0] === 'string') {
         // 處理字串格式的號碼
         numberArray = result.numbers[0]
@@ -31,7 +31,7 @@ function extractAllNumbers(results) {
           })
           .filter(num => num !== null && num >= 1 && num <= 49);
       }
-      
+
       allNumbers.push({
         numbers: numberArray,
         date: result.date,
@@ -39,7 +39,7 @@ function extractAllNumbers(results) {
       });
     }
   });
-  
+
   return allNumbers;
 }
 
@@ -50,7 +50,7 @@ function extractAllNumbers(results) {
  */
 function parsePeriodNumber(periodNumber) {
   if (!periodNumber) return null;
-  
+
   // 格式 25/132 (年份/期數)
   const match1 = periodNumber.match(/^(\d{2})\/(\d+)$/);
   if (match1) {
@@ -60,7 +60,7 @@ function parsePeriodNumber(periodNumber) {
     const period = parseInt(match1[2], 10);
     return { year, period, fullPeriod: periodNumber };
   }
-  
+
   // 格式 2025001 (年份+期數)
   const match2 = periodNumber.match(/^(\d{4})(\d{3})$/);
   if (match2) {
@@ -68,7 +68,7 @@ function parsePeriodNumber(periodNumber) {
     const period = parseInt(match2[2], 10);
     return { year, period, fullPeriod: periodNumber };
   }
-  
+
   return null;
 }
 
@@ -81,19 +81,19 @@ function parsePeriodNumber(periodNumber) {
 function isNextPeriod(currentPeriod, nextPeriod) {
   const current = parsePeriodNumber(currentPeriod);
   const next = parsePeriodNumber(nextPeriod);
-  
+
   if (!current || !next) return false;
-  
+
   // 同年份，期數相差1
   if (current.year === next.year && next.period === current.period + 1) {
     return true;
   }
-  
+
   // 跨年份（例如 25/132 -> 26/001）
   if (next.year === current.year + 1 && next.period === 1) {
     return true;
   }
-  
+
   return false;
 }
 
