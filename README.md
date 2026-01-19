@@ -103,7 +103,7 @@ mark-six-statistics/
 ## 技術架構
 
 ### 後端技術
-- **Node.js 20+**: 執行環境
+- **Node.js 25+**: 執行環境
 - **Express 4.18+**: Web 框架
 - **Axios 1.6+**: HTTP 客戶端（用於網頁抓取）
 - **Cheerio 1.0+**: 伺服器端 HTML 解析（類似 jQuery）
@@ -121,7 +121,7 @@ mark-six-statistics/
 ## 安裝與執行
 
 ### 前置需求
-- Node.js >= 20.0.0
+- Node.js >= 25.0.0
 - npm >= 10.0.0
 
 ### 本地開發
